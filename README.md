@@ -1,4 +1,4 @@
-# Fashion Previewer v4.1
+# Fashion Previewer v4.2
 
 A Python application for previewing and customizing character fashion using palette files.
 Now including Linux Support!
@@ -275,3 +275,21 @@ They may be back. Or not properly fixed. We don't know. Better safe than sorry.
 
 23. **Run scripts don't check for pip/pillow/python properly!!**
    - Should be fixed in v4.1 :3
+
+### (These *should* be fixed in v4.2+)
+
+24. **Export options don't work without Quicksave enabled**
+   - Should be fixed in v4.2
+
+25. **Time doesn't save properly in statistics**
+   - Should be fixed in v4.2
+
+26. **Options Menu doesn't allow you to press OK and only saves options when you press cancel**
+   - Should be fixed in v4.2
+
+27. **Gradient button settings don't save when using the sliders**
+   - Should be fixed in v4.2
+
+28. **Many icons/pals still don't export properly from v4.1 prior!!**
+   - HUGE update, with the documentation of it in the `AAA excess scripts` folder for you, in case you want to analyze it and submit fixes without looking at the code itself. Additionally, the rest of the ranges have been refactored in some way that are readable. So...
+   - Should be fixed in v4.2, along with the icon translator

@@ -1,0 +1,25 @@
+{
+    "live_palette_files_edited": [],
+    "live_palette_files_saved": [],
+    "icons_edited": [],
+    "icons_saved": [],
+    "frames_previewed": 0,
+    "frames_skipped": 0,
+    "start_time": 0.0,
+    "character_edits": {},
+    "exported_frames": 0,
+    "exported_backgrounds": 0,
+    "exported_palettes": {},
+    "colors_saved": 0,
+    "indexes_changed": 0,
+    "indexes_selected": 0,
+    "indexes_saved_in_pals": 0,
+    "colors_saved_in_json": 0,
+    "preview_indexes_selected": {
+        "live_pal": 0,
+        "live_icon": 0
+    },
+    "palettes_previewed": 0,
+    "unique_indexes_modified": [],
+    "total_index_modifications": 0
+}

@@ -1,0 +1,29 @@
+{
+    "global": {
+        "use_bmp_export": true,
+        "use_portrait_export": true,
+        "cute_bg_option": "both",
+        "palette_format": "png",
+        "show_frame_labels": true,
+        "use_right_click": true,
+        "live_pal_ui_mode": "Simple",
+        "show_export_palette_button": false,
+        "show_dev_buttons": false,
+        "use_quick_export": false,
+        "zoom_level": "100%",
+        "background_color": [
+            255,
+            255,
+            255
+        ],
+        "dont_show_excess_colors_prompt": false,
+        "dont_show_all_mode_warning": false,
+        "dont_show_50_frames_warning": false,
+        "show_frame_options": true,
+        "last_character": "chr001",
+        "last_job": "1st Job",
+        "last_frame": 0,
+        "last_preview_mode": "single"
+    },
+    "per_character": {}
+}

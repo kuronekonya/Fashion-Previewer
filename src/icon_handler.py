@@ -4,6 +4,10 @@ from tkinter import ttk, messagebox, filedialog
 from typing import List, Tuple
 from PIL import Image, ImageTk
 from palette_ranges import CHARACTER_RANGES
+try:
+    from icon_transpositions import ICON_TRANSPOSITIONS
+except ImportError:
+    ICON_TRANSPOSITIONS = {}
 import time
 
 # Character number mapping including alternate IDs
@@ -55,19 +59,31 @@ class IndexTranslator:
             "color_start": 1,  # Actual colors start at index 1
         }
     
-    def translate_to_icon_index(self, original_index: int, char_num: str, fashion_type: str) -> int:
+    def translate_to_icon_index(self, original_index: int, char_id: str, fashion_type: str) -> int:
         """
         Translate an original palette index to its corresponding icon palette index.
         
         Args:
             original_index: Index from the original palette
-            char_num: Character number (e.g. '001')
+            char_id: Character ID (e.g. 'chr001')
             fashion_type: Type of fashion (e.g. 'fashion_1')
             
         Returns:
             Corresponding index in the icon palette, or 0 if it's a dummy/keying index
         """
-        # If it's not in any of the valid ranges, it's a dummy/keying index
+        # First check if we have a direct transposition mapping
+        # We need to map fashion_type (e.g. fashion_1) to the clean name (e.g. backpack)
+        # This requires an instance of IconHandler or access to its FASHION_NAMES
+        # For now, let's assume we can determine the clean name
+        clean_name = self._get_clean_fashion_name(char_id, fashion_type)
+        
+        if char_id in ICON_TRANSPOSITIONS and clean_name in ICON_TRANSPOSITIONS[char_id]:
+            trans_data = ICON_TRANSPOSITIONS[char_id][clean_name]
+            if original_index in trans_data:
+                return trans_data[original_index]['icon_index']
+        
+        # Fallback to linear mapping based on ranges
+        char_num = char_id.replace("chr", "")
         ranges = self.original_ranges.get(char_num, {}).get(fashion_type, [])
         
         # Map ranges consecutively starting from index 1
@@ -85,13 +101,13 @@ class IndexTranslator:
         # Return dummy index for any index not in the valid ranges
         return self.icon_structure["dummy_index"]
     
-    def translate_from_icon_index(self, icon_index: int, char_num: str, fashion_type: str) -> int:
+    def translate_from_icon_index(self, icon_index: int, char_id: str, fashion_type: str) -> int:
         """
         Translate an icon palette index back to its corresponding original palette index.
         
         Args:
             icon_index: Index from the icon palette
-            char_num: Character number (e.g. '001')
+            char_id: Character ID (e.g. 'chr001')
             fashion_type: Type of fashion (e.g. 'fashion_1')
             
         Returns:
@@ -101,7 +117,16 @@ class IndexTranslator:
         if icon_index == self.icon_structure["dummy_index"]:
             return 0
             
-        # Get the valid ranges for this character/fashion type
+        # Check transpositions first (inverse mapping)
+        clean_name = self._get_clean_fashion_name(char_id, fashion_type)
+        if char_id in ICON_TRANSPOSITIONS and clean_name in ICON_TRANSPOSITIONS[char_id]:
+            trans_data = ICON_TRANSPOSITIONS[char_id][clean_name]
+            for orig_idx, data in trans_data.items():
+                if data['icon_index'] == icon_index:
+                    return orig_idx
+        
+        # Fallback to linear mapping
+        char_num = char_id.replace("chr", "")
         ranges = self.original_ranges.get(char_num, {}).get(fashion_type, [])
         if not ranges:
             return 0
@@ -120,6 +145,18 @@ class IndexTranslator:
         
         # If we get here, it's out of range, return dummy index
         return 0
+
+    def _get_clean_fashion_name(self, char_id: str, fashion_type: str) -> str:
+        """Helper to get the clean fashion name for transposition lookup."""
+        char_num = char_id.replace("chr", "")
+        # Access FASHION_NAMES from IconHandler (defined later in file)
+        # Note: We use a static reference or local copy if needed, but since it's 
+        # in the same module, we can access it if we're careful.
+        # Alternatively, use a simplified lookup logic if fashion_type is already known.
+        if char_num in IconHandler.FASHION_NAMES:
+            name = IconHandler.FASHION_NAMES[char_num].get(fashion_type, "")
+            return name.lower().replace(" ", "")
+        return fashion_type.lower()
 
 
 class IconHandler:
@@ -146,7 +183,7 @@ class IconHandler:
             "fashion_3": "Sash Belt", 
             "fashion_4": "Warmups",
             "fashion_5": "Wraps",
-            "fashion_6": "Hair Tie"
+            "fashion_6": "Hood Tie"
         },
         "003": {  # chr003 - Sheep 1st Job
             "fashion_1": "Dress",
@@ -154,7 +191,7 @@ class IconHandler:
             "fashion_3": "Boots",
             "fashion_4": "Bow",
             "fashion_5": "Bag",
-            "fashion_6": "Hairpin"
+            "fashion_6": "Spellbook"
         },
         "004": {  # chr004 - Dragon 1st Job
             "fashion_1": "Robe",
@@ -179,150 +216,154 @@ class IconHandler:
         },
         "007": {  # chr007 - Cat 1st Job
             "fashion_1": "Ribbon",
-            "fashion_2": "Dress",
-            "fashion_3": "Boots",
-            "fashion_4": "Gloves",
-            "fashion_5": "Bag",
-            "fashion_6": "Hairpin"
+            "fashion_2": "Belt",
+            "fashion_3": "Halter",
+            "fashion_4": "Heels",
+            "fashion_5": "Paws",
+            "fashion_6": "Skirt"
         },
         "008": {  # chr008 - Raccoon 1st Job
-            "fashion_1": "Hoodie",
-            "fashion_2": "Pants",
-            "fashion_3": "Shoes"
+            "fashion_1": "Blazer",
+            "fashion_2": "Slacks",
+            "fashion_3": "Dress Shoes"
         },
         "009": {  # chr009 - Bunny 2nd Job
             "fashion_1": "Jacket",
             "fashion_2": "Gloves",
             "fashion_3": "Skirt",
             "fashion_4": "Boots",
-            "fashion_5": "Bag"
+            "fashion_5": "Bag",
+            "fashion_6": "Stocking"
         },
         "010": {  # chr010 - Buffalo 2nd Job
-            "fashion_1": "Vest",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Bag"
+            "fashion_1": "Fur Collar",
+            "fashion_2": "Tunic",
+            "fashion_3": "Bolero",
+            "fashion_4": "Gauntlet",
+            "fashion_5": "Leather Shoes"
         },
         "011": {  # chr011 - Sheep 2nd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Checkered Dress",
+            "fashion_2": "Ribbon",
+            "fashion_3": "Minisack",
+            "fashion_4": "Gloves",
+            "fashion_5": "Ribbon Boots"
         },
         "012": {  # chr012 - Dragon 2nd Job
-            "fashion_1": "Robe",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Staff"
+            "fashion_1": "Shawl",
+            "fashion_2": "Beads Necklace",
+            "fashion_3": "Robe",
+            "fashion_4": "Wrap Skirt",
+            "fashion_5": "Ankle Boots"
         },
         "013": {  # chr013 - Fox 2nd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Sports Suit",
+            "fashion_2": "Tube Top",
+            "fashion_3": "Elbow Wrap",
+            "fashion_4": "Mittens",
+            "fashion_5": "Walkers"
         },
         "014": {  # chr014 - Lion 2nd Job
-            "fashion_1": "Jacket",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Bag"
+            "fashion_1": "Turtleneck",
+            "fashion_2": "Coil Coat",
+            "fashion_3": "Utility Belt",
+            "fashion_4": "Glove",
+            "fashion_5": "Boots"
         },
         "015": {  # chr015 - Cat 2nd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Hippie Shirt",
+            "fashion_2": "Studded Belt",
+            "fashion_3": "Checkered Skirt",
+            "fashion_4": "Checkered Stockings",
+            "fashion_5": "Heel Boots"
         },
         "016": {  # chr016 - Raccoon 2nd Job
-            "fashion_1": "Jacket",
-            "fashion_2": "Pants",
-            "fashion_3": "Boots"
+            "fashion_1": "Dress Shirt",
+            "fashion_2": "Checkered Suit",
+            "fashion_3": "Dress Shoes"
         },
         "017": {  # chr017 - Bunny 3rd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Tube Top",
+            "fashion_2": "Bolero Jacket",
+            "fashion_3": "Gauntlets",
+            "fashion_4": "Chord Skirt",
+            "fashion_5": "Steel Boots"
         },
         "018": {  # chr018 - Buffalo 3rd Job
-            "fashion_1": "Jacket",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Bag"
+            "fashion_1": "Asymmetrical Tee",
+            "fashion_2": "Protector",
+            "fashion_3": "Kilt",
+            "fashion_4": "Steel Armlets",
+            "fashion_5": "Ankle Shoes"
         },
         "019": {  # chr019 - Sheep 3rd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Flower Ribbon",
+            "fashion_2": "Puffy Blouse",
+            "fashion_3": "Flower Brooch",
+            "fashion_4": "Layered Dress",
+            "fashion_5": "Flower Shoes"
         },
         "020": {  # chr020 - Dragon 3rd Job
-            "fashion_1": "Robe",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Staff"
+            "fashion_1": "Wrap",
+            "fashion_2": "Hooded Robe",
+            "fashion_3": "Overcoat",
+            "fashion_4": "Robe",
+            "fashion_5": "Leather Boots"
         },
         "021": {  # chr021 - Fox 3rd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Hairpin"
+            "fashion_1": "Zip-up Coat",
+            "fashion_2": "Leather Shorts",
+            "fashion_3": "Leather Wristlets",
+            "fashion_4": "Buckle Boots",
+            "fashion_5": "Unknown"
         },
         "022": {  # chr022 - Lion 3rd Job
-            "fashion_1": "Jacket",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots"
+            "fashion_1": "Zip-up Jacket",
+            "fashion_2": "Long Jacket",
+            "fashion_3": "Shorts",
+            "fashion_4": "Long Boots",
+            "fashion_5": "Unknown"
         },
         "023": {  # chr023 - Cat 3rd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin"
+            "fashion_1": "Double Coat",
+            "fashion_2": "Shirring Skirt",
+            "fashion_3": "Buckle Shoes",
+            "fashion_4": "Blouse"
         },
         "024": {  # chr024 - Raccoon 3rd Job
-            "fashion_1": "Jacket",
-            "fashion_2": "Gloves",
-            "fashion_3": "Pants",
-            "fashion_4": "Boots",
-            "fashion_5": "Bag"
+            "fashion_1": "Dress Shirt",
+            "fashion_2": "Opera Cape",
+            "fashion_3": "Frock Coat",
+            "fashion_4": "Dress Pants",
+            "fashion_5": "Formal Shoes",
+            "fashion_6": "Unknown"
         },
-        "025": {  # chr025/100 - Paula 1st Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin",
-            "fashion_6": "Full Set"
+        "025": {  # chr025 (Paula 1st Job) - using 025 since icons are in chr025 folder
+            "fashion_1": "Stadium Jacket",
+            "fashion_2": "Sleeveless Dress",
+            "fashion_3": "Knee Socks",
+            "fashion_4": "School Loafers",
+            "fashion_5": "Ribbon Chou",
+            "fashion_6": "Cutie Satchel",
+            "fashion_7": "Extra"
         },
-        "026": {  # chr026/101 - Paula 2nd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin",
-            "fashion_6": "Full Set"
+        "026": {  # chr026 (Paula 2nd Job)
+            "fashion_1": "Pocket One-piece",
+            "fashion_2": "Animal Pocket Belt",
+            "fashion_3": "Knee-high Boots",
+            "fashion_4": "Ribbons",
+            "fashion_5": "Arm Cover",
+            "fashion_6": "Whip"
         },
-        "027": {  # chr027/102 - Paula 3rd Job
-            "fashion_1": "Dress",
-            "fashion_2": "Gloves",
-            "fashion_3": "Boots",
-            "fashion_4": "Bag",
-            "fashion_5": "Hairpin",
-            "fashion_6": "Full Set",
-            "fashion_7": "Full Set Alt",
-            "fashion_8": "Full Set Alt2"
+        "027": {  # chr027 (Paula 3rd Job)
+            "fashion_1": "Blouse",
+            "fashion_2": "Trench Dress",
+            "fashion_3": "Frilly Socks",
+            "fashion_4": "Cutie Buckle Boots",
+            "fashion_5": "Ribbon Rubber",
+            "fashion_6": "Ribbon Brooch",
+            "fashion_7": "Mini Pocket Belt",
+            "fashion_8": "Leather Buckle Gloves"
         },
         # Alternate IDs for Paula
         "100": {"fashion_1": "Dress", "fashion_2": "Gloves", "fashion_3": "Boots", "fashion_4": "Bag", "fashion_5": "Hairpin", "fashion_6": "Full Set"},
@@ -335,204 +376,6 @@ class IconHandler:
         self.root_dir = getattr(self, "root_dir", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         self.icons_dir = os.path.join(self.script_dir, "nonremovable_assets", "icons")
         
-        # Fashion type mappings for different characters (copied from fashionpreviewer.py)
-        self.FASHION_NAMES = {
-            "001": {  # chr001
-                "fashion_1": "Hoodie",
-                "fashion_2": "Gloves", 
-                "fashion_3": "Skort",
-                "fashion_4": "Backpack",
-                "fashion_5": "Shoes"
-            },
-            "002": {  # chr002
-                "fashion_1": "Airshoes",
-                "fashion_2": "Turtle Vest",
-                "fashion_3": "Sash Belt", 
-                "fashion_4": "Warmups",
-                "fashion_5": "Wraps",
-                "fashion_6": "Hood Tie"
-            },
-            "003": {  # chr003
-                "fashion_1": "Blouse",
-                "fashion_2": "Bow",
-                "fashion_3": "Frill Dress",
-                "fashion_4": "Flats",
-                "fashion_5": "Socks",
-                "fashion_6": "Spellbook"
-            },
-            "004": {  # chr004
-                "fashion_1": "Robe",
-                "fashion_2": "Shirt",
-                "fashion_3": "Jeans",
-                "fashion_4": "Monk Shoes", 
-                "fashion_5": "Cane"
-            },
-            "005": {  # chr005
-                "fashion_1": "Coat",
-                "fashion_2": "Heels",
-                "fashion_3": "Slit Skirt",
-                "fashion_4": "Tank",
-                "fashion_5": "Tote"
-            },
-            "006": {  # chr006
-                "fashion_1": "Jacket",
-                "fashion_2": "Shorts",
-                "fashion_3": "Trainers",
-                "fashion_4": "Open Glove",
-                "fashion_5": "T-neck"
-            },
-            "007": {  # chr007
-                "fashion_1": "Ribbon",
-                "fashion_2": "Belt",
-                "fashion_3": "Halter",
-                "fashion_4": "Heels",
-                "fashion_5": "Paws",
-                "fashion_6": "Skirt"
-            },
-            "008": {  # chr008
-                "fashion_1": "Blazer",
-                "fashion_2": "Slacks",
-                "fashion_3": "Dress Shoes"
-            },
-            "009": {  # chr009
-                "fashion_1": "Robe",
-                "fashion_2": "Boxing Glove",
-                "fashion_3": "Shorts",
-                "fashion_4": "Gloves",
-                "fashion_5": "Boxing Shoes",
-                "fashion_6": "Stocking"
-            },
-            "010": {  # chr010
-                "fashion_1": "Fur Collar",
-                "fashion_2": "Tunic",
-                "fashion_3": "Bolero",
-                "fashion_4": "Gauntlet",
-                "fashion_5": "Leather Shoes"
-            },
-            "011": {  # chr011
-                "fashion_1": "Checkered Dress",
-                "fashion_2": "Ribbon",
-                "fashion_3": "Minisack",
-                "fashion_4": "Gloves",
-                "fashion_5": "Ribbon Boots"
-            },
-            "012": {  # chr012
-                "fashion_1": "Shawl",
-                "fashion_2": "Beads Necklace",
-                "fashion_3": "Robe",
-                "fashion_4": "Wrap Skirt",
-                "fashion_5": "Ankle Boots"
-            },
-            "013": {  # chr013
-                "fashion_1": "Sports Suit",
-                "fashion_2": "Tube Top",
-                "fashion_3": "Elbow Wrap",
-                "fashion_4": "Mittens",
-                "fashion_5": "Walkers"
-            },
-            "014": {  # chr014
-                "fashion_1": "Turtleneck",
-                "fashion_2": "Coil Coat",
-                "fashion_3": "Utility Belt",
-                "fashion_4": "Glove",
-                "fashion_5": "Boots"
-            },
-            "015": {  # chr015
-                "fashion_1": "Hippie Shirt",
-                "fashion_2": "Studded Belt",
-                "fashion_3": "Checkered Skirt",
-                "fashion_4": "Checkered Stockings",
-                "fashion_5": "Heel Boots"
-            },
-            "016": {  # chr016
-                "fashion_1": "Dress Shirt",
-                "fashion_2": "Checkered Suit",
-                "fashion_3": "Dress Shoes"
-            },
-            "017": {  # chr017
-                "fashion_1": "Tube Top",
-                "fashion_2": "Bolero Jacket",
-                "fashion_3": "Gauntlets",
-                "fashion_4": "Chord Skirt",
-                "fashion_5": "Steel Boots"
-            },
-            "018": {  # chr018
-                "fashion_1": "Asymmetrical Tee",
-                "fashion_2": "Protector",
-                "fashion_3": "Kilt",
-                "fashion_4": "Steel Armlets",
-                "fashion_5": "Ankle Shoes"
-            },
-            "019": {  # chr019
-                "fashion_1": "Flower Ribbon",
-                "fashion_2": "Puffy Blouse",
-                "fashion_3": "Flower Brooch",
-                "fashion_4": "Layered Dress",
-                "fashion_5": "Flower Shoes"
-            },
-            "020": {  # chr020
-                "fashion_1": "Wrap",
-                "fashion_2": "Hooded Robe",
-                "fashion_3": "Overcoat",
-                "fashion_4": "Robe",
-                "fashion_5": "Leather Boots"
-            },
-            "021": {  # chr021
-                "fashion_1": "Zip-up Coat",
-                "fashion_2": "Leather Shorts",
-                "fashion_3": "Leather Wristlets",
-                "fashion_4": "Buckle Boots",
-                "fashion_5": "Unknown"
-            },
-            "022": {  # chr022
-                "fashion_1": "Zip-up Jacket",
-                "fashion_2": "Long Jacket",
-                "fashion_3": "Shorts",
-                "fashion_4": "Long Boots",
-                "fashion_5": "Unknown"
-            },
-            "023": {  # chr023
-                "fashion_1": "Double Coat",
-                "fashion_2": "Shirring Skirt",
-                "fashion_3": "Buckle Shoes",
-                "fashion_4": "Blouse"
-            },
-            "024": {  # chr024 (Raccoon 3rd Job)
-                "fashion_1": "Dress Shirt",
-                "fashion_2": "Opera Cape",
-                "fashion_3": "Frock Coat",
-                "fashion_4": "Dress Pants",
-                "fashion_5": "Full Suit",
-                "fashion_6": "Formal Shoes"
-            },
-            "025": {  # chr025 (Paula 1st Job) - using 025 since icons are in chr025 folder
-                "fashion_1": "Stadium Jacket",
-                "fashion_2": "Sleeveless Dress",
-                "fashion_3": "Knee Socks",
-                "fashion_4": "School Loafers",
-                "fashion_5": "Ribbon Chou",
-                "fashion_6": "Cutie Satchel",
-                "fashion_7": "Extra"
-            },
-            "026": {  # chr026 (Paula 2nd Job)
-                "fashion_1": "Pocket One-piece",
-                "fashion_2": "Animal Pocket Belt",
-                "fashion_3": "Knee-high Boots",
-                "fashion_4": "Ribbons",
-                "fashion_5": "Arm Cover",
-                "fashion_6": "Whip"
-            },
-            "027": {  # chr027 (Paula 3rd Job)
-                "fashion_1": "Blouse",
-                "fashion_2": "Trench Dress",
-                "fashion_3": "Frilly Socks",
-                "fashion_4": "Cutie Buckle Boots",
-                "fashion_5": "Ribbon Rubber",
-                "fashion_6": "Ribbon Brooch",
-                "fashion_7": "Mini Pocket Belt",
-                "fashion_8": "Leather Buckle Gloves"
-            }
-        }
         
     def _get_fashion_name(self, char_id: str, fashion_type: str) -> str:
         """Get the proper name for a fashion type based on character."""
@@ -591,7 +434,7 @@ class IconHandler:
         # Default to magenta if no valid keying color found
         return (255, 0, 255)
     
-    def open_icon_editor(self, palette_layers, live_editor_window=None):
+    def open_icon_editor(self, palette_layers, live_editor_window=None, ui_mode="Simple", last_selected_palette=None):
         """Open the icon editor from the main screen."""
         import re
         from tkinter import messagebox
@@ -603,26 +446,42 @@ class IconHandler:
         
         active_layers = [ly for ly in palette_layers if getattr(ly, "active", False)]
         if not active_layers:
-            messagebox.showinfo("Icon Editor", "Please open a base fashion piece first.")
+            messagebox.showwarning("Warning", "No active layers found.")
             return
             
-        # Filter out hair and third job layers
-        base_fashion_layers = [ly for ly in active_layers if hasattr(ly, "palette_type") and 
-                             ly.palette_type.startswith("fashion_") and 
-                             not (ly.name and ("hair" in ly.name.lower() or "third" in ly.name.lower()))]
-                             
-        if not base_fashion_layers:
-            messagebox.showinfo("Icon Editor", "Please open a base fashion piece first.")
+        # Determine the target layer first
+        target_layer = None
+        if last_selected_palette:
+            import os
+            last_pal_base = os.path.basename(last_selected_palette)
+            for ly in active_layers:
+                if ly.name == last_pal_base:
+                    target_layer = ly
+                    break
+        
+        # Fallback to first fashion layer if no match or none selected
+        if not target_layer:
+            for ly in active_layers:
+                if hasattr(ly, "palette_type") and str(ly.palette_type).startswith("fashion"):
+                    target_layer = ly
+                    break
+                    
+        # If still no target, just take the first active one
+        if not target_layer and active_layers:
+            target_layer = active_layers[0]
+
+        if not target_layer:
+            messagebox.showwarning("Warning", "No valid layers found.")
             return
 
-        # Prefer an active fashion layer if present
-        default_idx = 0
-        for i, ly in enumerate(active_layers):
-            if hasattr(ly, "palette_type") and ly.palette_type.startswith("fashion"):
-                default_idx = i
-                break
-
-        ly = active_layers[default_idx]
+        # NOW check if the target layer is hair or third job
+        if hasattr(target_layer, 'palette_type'):
+            palette_type = str(target_layer.palette_type).lower()
+            if palette_type in ("hair", "3rd_job_base"):
+                messagebox.showwarning("Warning", "Icon editor not available for Hair or 3rd Job Base.")
+                return
+        
+        ly = target_layer
         
         # Extract character ID and item name from the layer
         char_match = re.search(r'(?:chr)?(\d{3})', ly.name)
@@ -656,10 +515,13 @@ class IconHandler:
                     if 0 <= r <= 255 and 0 <= g <= 255 and 0 <= b <= 255:
                         valid_colors.append((r, g, b))
                     else:
+                        print(f"CONSOLE ERROR MSG: Color values out of range at index {i}: {color}")
                         valid_colors.append((128, 128, 128))  # Default gray
                 except (ValueError, TypeError):
+                    print(f"CONSOLE ERROR MSG: Invalid color at index {i}: {color}")
                     valid_colors.append((128, 128, 128))  # Default gray
             else:
+                print(f"CONSOLE ERROR MSG: Invalid color format at index {i}: {color}")
                 valid_colors.append((128, 128, 128))  # Default gray
         
         if not valid_colors:
@@ -671,6 +533,7 @@ class IconHandler:
         
         try:
             # Open the icon palette editor directly
+            # Note: IconPaletteEditor is defined in this file, so we can use it directly
             editor = IconPaletteEditor(
                 char_id=char_id,
                 fashion_type=fashion_type,
@@ -679,7 +542,8 @@ class IconHandler:
                 palette_layers=palette_layers,
                 live_editor_window=live_editor_window,
                 is_quicksave_mode=False,  # Editor mode - allow user to name file
-                icon_handler=self
+                icon_handler=self,
+                ui_mode=ui_mode
             )
             
             # Store the instance and set up cleanup
@@ -884,7 +748,7 @@ class IconHandler:
             except:
                 return []
 
-    def save_as_icon(self, char_id: str, fashion_type: str, custom_palette: list, palette_path: str = None) -> bool:
+    def save_as_icon(self, char_id: str, fashion_type: str, custom_palette: list, palette_path: str = None, export_path: str = None) -> bool:
         """
         Save the current item as an icon with the custom palette applied.
         Uses the new system: finds base BMP name, matches PAL folder palette, 
@@ -923,36 +787,32 @@ class IconHandler:
             
             # Create adjusted palette by mapping saved colors to the correct indexes
             adjusted_pal_colors = base_pal_colors.copy()  # Start with base structure
-            char_num = char_id[3:] if char_id.startswith('chr') else char_id
+            
+            # Ensure we're using IndexTranslator
             translator = IndexTranslator()
-            ranges = translator.original_ranges.get(char_num, {}).get(fashion_type, [])
             
-            # Map saved palette colors to the correct indexes in the base PAL structure
-            # For main UI mode, use direct index mapping without translation
-            # For quicksave mode, use the existing translation logic
-            if hasattr(self, 'is_quicksave_mode') and not self.is_quicksave_mode:
-                # Main UI mode: Direct index-to-index mapping
-                for r in ranges:
-                    for idx in range(r.start, r.stop):  # Include full range
-                        if (idx < len(adjusted_pal_colors) and idx < len(custom_palette) and 
-                            idx != 0 and idx != 255):  # Skip index 0 (keying) AND index 255 (last palette index)
-                            # Use the saved palette color at the SAME index position
-                            adjusted_pal_colors[idx] = custom_palette[idx]
+            # Convert custom_palette to dictionary if it's a list for easier lookup
+            if isinstance(custom_palette, list):
+                custom_palette_dict = {i: color for i, color in enumerate(custom_palette)}
             else:
-                # Quicksave mode: Use translation logic
-                for r in ranges:
-                    for idx in range(r.start, r.stop):  # Include full range
-                        if (idx < len(adjusted_pal_colors) and idx < len(custom_palette) and 
-                            idx != 0 and idx != 255):  # Skip index 0 (keying) AND index 255 (last palette index)
-                            # Use the saved palette color at the SAME index position
-                            adjusted_pal_colors[idx] = custom_palette[idx]
-            
-            # Count how many colors were actually mapped
+                custom_palette_dict = custom_palette
+
+            # Map saved palette colors to the correct indexes in the base PAL structure
+            # We iterate through all 256 indexes and ask the translator where they go
             mapped_count = 0
-            for r in ranges:
-                for idx in range(r.start, r.stop):
-                    if (idx < len(adjusted_pal_colors) and idx < len(custom_palette) and 
-                        idx != 0 and idx != 255):
+            for vanilla_idx in range(256):
+                # Skip keying indexes
+                if vanilla_idx == 0 or vanilla_idx == 255:
+                    continue
+                    
+                if vanilla_idx in custom_palette_dict:
+                    # For icons, the color used in the BMP corresponds to the color 
+                    # from the vanilla palette mapped via translation.
+                    # Since adjusted_pal_colors IS the _base.pal structure, we keep it as is
+                    # and rely on the mapping logic later in the function.
+                    # However, we need to know how many colors ARE actually mapped/valid.
+                    icon_idx = translator.translate_to_icon_index(vanilla_idx, char_id, fashion_type)
+                    if icon_idx > 0:
                         mapped_count += 1
             
             # Step 4: Get the image path (use BMP files only)
@@ -1082,11 +942,10 @@ class IconHandler:
             
             new_palette = []
             used_indices = sorted(set(original_pixel_data))
-            
             for i in range(256):
                 final_color = (255, 0, 255)  # Default magenta background
                 
-                # SIMPLIFIED: Direct BMP to used_colors mapping (skip magenta)
+                # Use IndexTranslator for the final mapping from BMP to custom colors
                 if i < len(original_bmp_palette)//3:
                     # Get BMP color
                     r = original_bmp_palette[i*3]
@@ -1094,28 +953,33 @@ class IconHandler:
                     b = original_bmp_palette[i*3+2]
                     bmp_color = (r, g, b)
                     
-                    # Skip keying colors, use 1:1 mapping from vanilla indices to _base.pal
-                    if not (bmp_color == (255, 0, 255) or 
-                           bmp_color == (0, 255, 0) or 
-                           self.is_universal_keying_color(bmp_color)):
-                        
-                        # Find this BMP color in _base.pal to get the _base.pal index
-                        base_pal_idx = None
+                    # 1. Skip keying colors (map to magenta)
+                    if (bmp_color == (255, 0, 255) or 
+                        bmp_color == (0, 255, 0) or 
+                        self.is_universal_keying_color(bmp_color)):
+                        final_color = (255, 0, 255)
+                    else:
+                        # 2. Find which base palette index this BMP color corresponds to
+                        matched_base_idx = None
                         for base_idx, base_color in enumerate(base_pal_colors):
                             if base_color == bmp_color:
-                                base_pal_idx = base_idx
+                                matched_base_idx = base_idx
                                 break
                         
-                        if base_pal_idx is not None:
-                            # Use the mapped custom palette color for this base palette index
-                            if base_pal_idx in base_to_custom_mapping:
-                                final_color = base_to_custom_mapping[base_pal_idx]
+                        if matched_base_idx is not None:
+                            # 3. Use our mapping (which used IndexTranslator) to get the custom color
+                            if matched_base_idx in base_to_custom_mapping:
+                                final_color = base_to_custom_mapping[matched_base_idx]
                             else:
-                                final_color = (255, 0, 255)  # Use magenta for unmapped colors
+                                final_color = (255, 0, 255) # Unmapped
                         else:
-                            final_color = (255, 0, 255)  # Use magenta if not found in base palette
-                    else:
-                        final_color = (255, 0, 255)  # Use magenta for keying colors
+                            # 4. Fallback: find closest color
+                            final_color = (255, 0, 255)
+                            closest_idx = self._find_closest_color_index(bmp_color, base_pal_colors)
+                            if closest_idx is not None and closest_idx in base_to_custom_mapping:
+                                final_color = base_to_custom_mapping[closest_idx]
+                            else:
+                                final_color = bmp_color # Extreme fallback
                 
                 new_palette.extend([final_color[0], final_color[1], final_color[2]])
             
@@ -1163,11 +1027,20 @@ class IconHandler:
             new_img.putdata(new_img_data)
             
             # Save as 24-bit BMP
-            if palette_path:
-                icon_name = os.path.splitext(os.path.basename(palette_path))[0] + ".bmp"
+            # Save as 24-bit BMP
+            if export_path:
+                # Use provided path directly
+                pass
+            elif palette_path:
+                pal_name = os.path.splitext(os.path.basename(palette_path))[0]
+                # Remove temp prefix if present
+                if pal_name.startswith("temp_"):
+                    pal_name = pal_name[5:]
+                icon_name = f"{char_id}_{fashion_type}_{pal_name}.bmp"
+                export_path = os.path.join(export_dir, icon_name)
             else:
                 icon_name = f"{char_id}_{fashion_type}_{base_bmp_name}.bmp"
-            export_path = os.path.join(export_dir, icon_name)
+                export_path = os.path.join(export_dir, icon_name)
             
             # Create directory if it doesn't exist when actually saving
             os.makedirs(os.path.dirname(export_path), exist_ok=True)
@@ -1254,12 +1127,18 @@ class IconHandler:
         translator = IndexTranslator()
         ranges = translator.original_ranges.get(char_num, {}).get(fashion_type, [])
         
+        # Convert custom_palette to dictionary if it's a list for easier lookup
+        if isinstance(custom_palette, list):
+            custom_palette_dict = {i: color for i, color in enumerate(custom_palette)}
+        else:
+            custom_palette_dict = custom_palette
+
         # Collect candidate colors from custom palette
         candidates = {}  # vanilla_idx -> color
         for r in ranges:
             for idx in range(r.start, r.stop):
-                if idx < len(custom_palette) and idx != 0 and idx != 255:
-                    color = custom_palette[idx]
+                if idx in custom_palette_dict and idx != 0 and idx != 255:
+                    color = custom_palette_dict[idx]
                     
                     # Validate color tuple
                     if isinstance(color, (list, tuple)) and len(color) == 3:
@@ -1434,7 +1313,7 @@ class IconHandler:
 class IconPaletteEditor:
     """A mini palette editor specifically for editing icon palettes with live preview."""
     
-    def __init__(self, char_id: str, fashion_type: str, custom_palette: list, palette_path: str, palette_layers=None, live_editor_window=None, is_quicksave_mode=False, icon_handler=None):
+    def __init__(self, char_id: str, fashion_type: str, custom_palette: list, palette_path: str, palette_layers=None, live_editor_window=None, is_quicksave_mode=False, icon_handler=None, ui_mode="Simple"):
         self.char_id = char_id
         self.fashion_type = fashion_type
         self.custom_palette = custom_palette
@@ -1443,6 +1322,16 @@ class IconPaletteEditor:
         self.live_editor_window = live_editor_window
         self.is_quicksave_mode = is_quicksave_mode
         self.icon_handler = icon_handler
+        # Load UI mode from settings if not explicitly provided
+        if ui_mode == "Simple":  # Default value, check if we should load from settings
+            try:
+                from icon_handler_settings import load_icon_editor_settings
+                self.ui_mode = load_icon_editor_settings()
+            except:
+                self.ui_mode = ui_mode
+        else:
+            self.ui_mode = ui_mode
+        
         
         # Initialize UI variables first
         self.multi_select_var = tk.BooleanVar(value=False)
@@ -1480,16 +1369,46 @@ class IconPaletteEditor:
         self._gradient_adjust_saturation = False
         self._gradient_adjust_value = False
         
+        # Track marked gradient buttons (indices)
+        self._gradient_marked_indices = set()
+        
         # Temporary palette cache to preserve changes during editor session
         self._temp_palette_cache = {}  # Cache for temporary changes during session
         self._original_palettes = {}  # Store original colors for cleanup when editor closes
         
+
         # Get paths to reference files
         self.icon_handler = IconHandler()
-        item_name = self.icon_handler._get_fashion_name(char_id, fashion_type)
-        self.image_path, self.ref_pal_path = self.icon_handler._get_icon_paths(char_id, item_name)
+        item_name_raw = self.icon_handler._get_fashion_name(char_id, fashion_type)
+        item_name = ''.join(c.lower() for c in item_name_raw if c.isalnum())
+        self.image_path, self.ref_pal_path = self.icon_handler._get_icon_paths(char_id, item_name_raw)
         
-        
+        # Apply transposition from active palette to icon palette if available
+        # This shifts the colors based on pre-calculated offsets to match the icon's shading
+        if hasattr(self, 'custom_palette') and self.custom_palette:
+            char_key = f"chr{char_id[3:]}" if char_id.startswith("chr") else f"chr{char_id}"
+            
+            # Check for transpositions
+            if char_key in ICON_TRANSPOSITIONS and item_name in ICON_TRANSPOSITIONS[char_key]:
+                print(f"Applying icon transposition for {char_key} {item_name}")
+                trans_data = ICON_TRANSPOSITIONS[char_key][item_name]
+                
+                # Apply offsets to custom_palette
+                new_palette = list(self.custom_palette)
+                for base_idx, data in trans_data.items():
+                    if base_idx < len(new_palette):
+                        offset = data['offset']
+                        base_color = new_palette[base_idx]
+                        
+                        # Apply offset (r+dr, g+dg, b+db)
+                        r = max(0, min(255, base_color[0] + offset[0]))
+                        g = max(0, min(255, base_color[1] + offset[1]))
+                        b = max(0, min(255, base_color[2] + offset[2]))
+                        
+                        new_palette[base_idx] = (r, g, b)
+                
+                self.custom_palette = new_palette
+
         # Load reference palette and extract colors
         self.ref_colors = []
         self.keying_color = (255, 0, 255)
@@ -2208,10 +2127,18 @@ class IconPaletteEditor:
         main_frame = ttk.Frame(self.window)
         main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        # Title
-        title_label = ttk.Label(main_frame, text=f"Editing Icon Palette for {self.icon_handler._get_fashion_name(self.char_id, self.fashion_type)}", 
+        # Title bar with gears button
+        title_frame = ttk.Frame(main_frame)
+        title_frame.pack(fill=tk.X, pady=(0, 5))
+        
+        title_label = ttk.Label(title_frame, text=f"Editing Icon Palette for {self.icon_handler._get_fashion_name(self.char_id, self.fashion_type)}", 
                                font=("Arial", 12, "bold"))
-        title_label.pack(pady=(0, 5))
+        title_label.pack(side=tk.LEFT)
+        
+        # Gears button for settings
+        gears_btn = ttk.Button(title_frame, text="⚙", width=3, command=self._open_settings_menu)
+        gears_btn.pack(side=tk.RIGHT)
+        
         
         # Create paned window for split layout
         paned = ttk.PanedWindow(main_frame, orient=tk.HORIZONTAL)
@@ -2456,6 +2383,13 @@ class IconPaletteEditor:
         self._update_preview()
     
     def _create_palette_grid(self):
+        """Create the palette grid based on UI mode."""
+        if self.ui_mode == "Advanced":
+            self._create_advanced_grid()
+        else:
+            self._create_simple_grid()
+
+    def _create_simple_grid(self):
         """Create the palette grid showing only the editable colors with their original indexes."""
         # Clear existing squares
         for widget in self.palette_frame.winfo_children():
@@ -2591,63 +2525,108 @@ class IconPaletteEditor:
                     for i in range(start_idx, end_idx + 1):
                         if i < len(self.current_colors):  # Ensure within bounds
                             self.selected_indices.add(i)
-                else:
-                    self.selected_indices.add(index)
-                # Always update selected_index to the clicked color
-                self.selected_index = index
-            elif self.multi_select_var.get():
-                # Multi-select mode (regular click)
-                if index in self.selected_indices:
-                    self.selected_indices.remove(index)
-                else:
-                    self.selected_indices.add(index)
-                # Always update selected_index to the clicked color
-                self.selected_index = index
             else:
-                # Single select mode
-                self.selected_indices = {index}
-                self.selected_index = index
-        elif button == "right":
-            # Right click - apply saved color from first non-empty slot
-            # Find first non-empty saved color
-            for i, saved_color in enumerate(self.saved_colors):
-                if saved_color != (0, 0, 0):  # Not empty (black)
-                    # Apply the saved color to the clicked square
-                    self.current_colors[index] = saved_color
-                    # Update the visual square (only if it's displayed)
-                    if hasattr(self, 'original_to_display_index') and index in self.original_to_display_index:
-                        display_idx = self.original_to_display_index[index]
-                        if display_idx < len(self.palette_squares):
-                            square = self.palette_squares[display_idx]
-                            hex_color = f"#{saved_color[0]:02x}{saved_color[1]:02x}{saved_color[2]:02x}"
-                            square.delete("all")
-                            square.create_rectangle(0, 0, 80, 80, fill=hex_color, outline="black")
-                    # Update color picker if this is the selected color
-                    if index == self.selected_index:
-                        self._update_color_picker()
-                    # Update live preview
-                    self._update_preview()
-                    break
+                # Normal click behavior depends on multiselect mode
+                if self.multi_select_var.get():
+                    # Multiselect enabled: left-click adds to selection (like right-click)
+                    if index in self.selected_indices:
+                        # If already selected, deselect it
+                        self.selected_indices.remove(index)
+                        if self.selected_index == index and self.selected_indices:
+                            self.selected_index = next(iter(self.selected_indices))
+                    else:
+                        # Add to selection
+                        self.selected_indices.add(index)
+                        self.selected_index = index
+                else:
+                    # Multiselect disabled: replace selection
+                    self.selected_indices.clear()
+                    self.selected_indices.add(index)
+                    self.selected_index = index
         
-        # Always update color picker to show the most recently clicked color
+        elif button == "right":
+            # Right click: add/remove from selection
+            if index in self.selected_indices:
+                self.selected_indices.remove(index)
+                # If we removed the primary selection, pick another one if available
+                if self.selected_index == index:
+                    if self.selected_indices:
+                        self.selected_index = next(iter(self.selected_indices))
+                    else:
+                        # Keep index but just empty set? Or reset to 0?
+                        # Let's keep the index but it's not in the set
+                        pass
+            else:
+                self.selected_indices.add(index)
+                self.selected_index = index
+        
+        # Update highlights
+        self._update_selection_highlights()
+        
+        # Update color picker
         self._update_color_picker()
         
-        # Update selection highlights (only for displayed squares)
-        # Keep highlightthickness consistent to prevent grid movement
-        for i, square in enumerate(self.palette_squares):
-            # Convert display index to original index
-            original_idx = self.display_to_original_index.get(i, i)
-            if original_idx in self.selected_indices:
-                square.configure(highlightbackground="red", highlightthickness=1)
-            else:
-                square.configure(highlightbackground="black", highlightthickness=1)
-        
-        # Update selection count
-        count = len(self.selected_indices)
-        self.selection_count_var.set(f"({count} selected)")
-        
-        # Clear the flag to allow grid recreation again
+        # Clear flag
         self._updating_selection = False
+
+    def _create_advanced_grid(self):
+        """Create the advanced 16x16 palette grid showing all 256 colors."""
+        # Clear existing squares
+        for widget in self.palette_frame.winfo_children():
+            widget.destroy()
+        self.palette_squares = []
+        
+        # Reset mapping
+        self.display_to_original_index = {i: i for i in range(256)}
+        self.original_to_display_index = {i: i for i in range(256)}
+        
+        # Configure grid to be 16x16
+        # We need to ensure the frame can hold it.
+        # The parent canvas might need resizing or scrolling if it's too small, 
+        # but usually 16x20px squares = 320px width, which should fit.
+        
+        # Create a grid of color squares
+        for i in range(256):
+            row = i // 16
+            col = i % 16
+            
+            # Get color (default to black if out of range)
+            if i < len(self.current_colors):
+                color = self.current_colors[i]
+            else:
+                color = (0, 0, 0)
+            
+            # Create canvas-based swatch
+            # Using 20x20 size similar to main palette tool
+            square = tk.Canvas(self.palette_frame, width=20, height=20, 
+                             highlightthickness=1, highlightbackground="black", relief="flat")
+            square.grid(row=row, column=col, padx=1, pady=1)
+            
+            # Fill with color
+            try:
+                r, g, b = int(color[0]), int(color[1]), int(color[2])
+                r = max(0, min(255, r))
+                g = max(0, min(255, g))
+                b = max(0, min(255, b))
+                hex_color = f"#{r:02x}{g:02x}{b:02x}"
+            except (ValueError, TypeError, IndexError):
+                hex_color = "#000000"
+            
+            square.create_rectangle(0, 0, 20, 20, fill=hex_color, outline="")
+            
+            # Bind click events
+            square.bind("<Button-1>", lambda e, idx=i: self._on_palette_square_click(idx, "left", e.state))
+            square.bind("<Button-3>", lambda e, idx=i: self._on_palette_square_click(idx, "right", e.state))
+            
+            self.palette_squares.append(square)
+            
+        # Update canvas scroll region
+        self.palette_frame.update_idletasks()
+        self.palette_canvas.configure(scrollregion=self.palette_canvas.bbox("all"))
+        
+        # Select first color by default
+        self._select_color(0, "left", 0)
+
     
     def _refresh_selection_highlights(self):
         """Refresh the selection highlights for all palette squares."""
@@ -2807,8 +2786,9 @@ class IconPaletteEditor:
                         square = self.palette_squares[display_idx]
                         hex_color = f"#{rr:02x}{gg:02x}{bb:02x}"
                         square.delete("all")
-                        # Use the same size as in _create_palette_grid (80x80)
-                        square.create_rectangle(0, 0, 80, 80, fill=hex_color, outline="black")
+                        # Use size based on UI mode: 20x20 for Advanced, 80x80 for Simple
+                        square_size = 20 if self.ui_mode == "Advanced" else 80
+                        square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline="black")
         
         # Update hex display with the focused color
         focus = self.selected_index
@@ -2913,6 +2893,63 @@ class IconPaletteEditor:
                 
         except Exception as e:
             pass
+    
+    def _open_settings_menu(self):
+        """Open settings menu for UI mode selection."""
+        # Create settings menu window
+        settings_window = tk.Toplevel(self.window)
+        settings_window.title("Icon Editor Settings")
+        settings_window.resizable(False, False)
+        settings_window.transient(self.window)
+        settings_window.grab_set()
+        
+        # Center the window
+        settings_window.update_idletasks()
+        width = 300
+        height = 150
+        x = self.window.winfo_x() + (self.window.winfo_width() - width) // 2
+        y = self.window.winfo_y() + (self.window.winfo_height() - height) // 2
+        settings_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Main frame
+        main_frame = ttk.Frame(settings_window, padding=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        ttk.Label(main_frame, text="Palette Display Mode", font=("Arial", 10, "bold")).pack(pady=(0, 10))
+        
+        # UI mode selection
+        ui_mode_var = tk.StringVar(value=self.ui_mode)
+        
+        ttk.Radiobutton(main_frame, text="Simple (Filtered Colors)", variable=ui_mode_var, value="Simple").pack(anchor=tk.W, pady=2)
+        ttk.Radiobutton(main_frame, text="Advanced (16x16 Grid - All 256 Colors)", variable=ui_mode_var, value="Advanced").pack(anchor=tk.W, pady=2)
+        
+        # Buttons
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=(15, 0))
+        
+        def apply_settings():
+            new_mode = ui_mode_var.get()
+            if new_mode != self.ui_mode:
+                self.ui_mode = new_mode
+                self._save_ui_mode_setting(new_mode)
+                self._create_palette_grid()  # Recreate grid with new mode
+            settings_window.destroy()
+        
+        def cancel():
+            settings_window.destroy()
+        
+        ttk.Button(button_frame, text="Apply", command=apply_settings).pack(side=tk.LEFT, padx=5)
+        ttk.Button(button_frame, text="Cancel", command=cancel).pack(side=tk.LEFT, padx=5)
+    
+    def _save_ui_mode_setting(self, ui_mode):
+        """Save UI mode setting to settings.json"""
+        try:
+            from icon_handler_settings import save_icon_editor_settings
+            save_icon_editor_settings(ui_mode)
+        except Exception as e:
+            print(f"Error saving UI mode setting: {e}")
+    
     
     def _show_auto_close_warning(self, title, message):
         """Show a warning dialog that automatically closes after 7 seconds."""
@@ -4049,7 +4086,9 @@ class IconPaletteEditor:
                     square = self.palette_squares[display_idx]
                     hex_color = f"#{picked_color[0]:02x}{picked_color[1]:02x}{picked_color[2]:02x}"
                     square.delete("all")
-                    square.create_rectangle(0, 0, 80, 80, fill=hex_color, outline="black")
+                    # Use size based on UI mode: 20x20 for Advanced, 80x80 for Simple
+                    square_size = 20 if self.ui_mode == "Advanced" else 80
+                    square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline="black")
         
         self._update_color_picker()
         self._update_preview()
@@ -4522,6 +4561,7 @@ class IconPaletteEditor:
             ("Neutral:", gradient_colors[64:72])
         ]
         
+        global_btn_idx = 0
         for row_idx, (label, colors) in enumerate(rows_data):
             row = tk.Frame(button_frame)
             if row_idx < len(rows_data) - 1:  # All rows except last
@@ -4536,9 +4576,18 @@ class IconPaletteEditor:
                     name, hex_color = color_data[0], color_data[1]
                     target_hue = color_data[2] if len(color_data) > 2 else None
                     variant = color_data[3] if len(color_data) > 3 else None
-                    btn = tk.Button(row, text="  ", bg=hex_color, width=3, height=1,
+                    
+                    # Check if marked
+                    btn_text = "X" if global_btn_idx in self._gradient_marked_indices else "  "
+                    
+                    btn = tk.Button(row, text=btn_text, bg=hex_color, width=3, height=1,
                                   command=lambda h=target_hue, n=name, v=variant: self._apply_gradient_hue(h, n, v))
                     btn.pack(side="left", padx=1)
+                    
+                    # Bind right-click to toggle mark
+                    btn.bind("<Button-3>", lambda e, idx=global_btn_idx, b=btn: self._toggle_gradient_mark(idx, b))
+                    
+                    global_btn_idx += 1
         
         # Buttons frame
         buttons_frame = tk.Frame(main_frame)
@@ -4566,6 +4615,15 @@ class IconPaletteEditor:
             self._gradient_adjust_saturation = value
         elif setting == 'value':
             self._gradient_adjust_value = value
+
+    def _toggle_gradient_mark(self, index, btn):
+        """Toggle the mark on a gradient button."""
+        if index in self._gradient_marked_indices:
+            self._gradient_marked_indices.remove(index)
+            btn.config(text="  ")
+        else:
+            self._gradient_marked_indices.add(index)
+            btn.config(text="X")
 
     def _apply_gradient_hue(self, target_hue, color_name, variant=None):
         """Apply hue adjustment to colors in the current icon palette."""
@@ -4954,9 +5012,10 @@ class IconPaletteEditor:
             os.makedirs(os.path.dirname(export_path), exist_ok=True)
             
             # Use the icon handler to save with our edited colors
-            success = self.icon_handler.save_as_icon_with_colors(
+            # Use save_as_icon instead of save_as_icon_with_colors to ensure consistent behavior with Quick Export
+            success = self.icon_handler.save_as_icon(
                 self.char_id, self.fashion_type, self.current_colors, 
-                self.keying_color, self.image_path, export_path
+                palette_path=self.palette_path, export_path=export_path
             )
             
             if success:

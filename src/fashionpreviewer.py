@@ -194,6 +194,8 @@ class CustomPreviewDialog:
                 self.parent.use_frame_choice = self.user_choice_var.get()
                 new_mode = self.live_pal_ui_var.get()
                 self.parent.live_pal_ui_mode = new_mode
+                self.parent.show_export_palette_button = self.show_export_button_var.get()
+                self.parent.show_dev_buttons = self.show_dev_buttons_var.get()
                 # Update excess colors prompt setting (invert because setting is "dont_show")
                 self.parent.dont_show_excess_colors_prompt = not self.show_excess_colors_prompt_var.get()
                 
@@ -392,6 +394,13 @@ class CustomPreviewDialog:
         self.validate_inputs()
         self._initializing = False
         
+        # Add a Reset Defaults button at the very bottom
+        reset_defaults_frame = tk.Frame(container)
+        reset_defaults_frame.pack(fill="x", side="bottom", pady=(0, 5))
+        tk.Button(reset_defaults_frame, text="Reset to default settings", 
+                  command=self.reset_to_defaults, fg="#d9534f", font=("Arial", 8, "underline"),
+                  cursor="hand2", relief="flat").pack(anchor="center")
+        
     def validate_inputs(self):
         """Validate all inputs and update UI accordingly"""
         try:
@@ -404,17 +413,17 @@ class CustomPreviewDialog:
                 self.show_validation_error("Number of frames must be greater than 0")
                 return False
             if frames > self.max_frames:
-                self.show_validation_error(f"Number of frames cannot exceed {self.max_frames}")
-                return False
+                self.frame_var.set(str(self.max_frames))
+                return True
             if start_frame < 0:
-                self.show_validation_error("Start frame must be at least 1")
-                return False
+                self.start_var.set("1")
+                return True
             if end_frame >= self.max_frames:
-                self.show_validation_error(f"End frame cannot exceed {self.max_frames}")
-                return False
+                self.end_var.set(str(self.max_frames))
+                return True
             if start_frame > end_frame:
-                self.show_validation_error("Start frame must be less than or equal to end frame")
-                return False
+                self.start_var.set(str(end_frame + 1))
+                return True
             # If frame count is larger than the range, auto-adjust it (but not during initialization)
             range_size = end_frame - start_frame + 1
             if range_size < frames and not getattr(self, '_initializing', False):
@@ -471,6 +480,52 @@ class CustomPreviewDialog:
             self.frame_choice_container.pack(side="left", padx=(10,0))
         else:
             self.frame_choice_container.pack_forget()
+
+    def reset_to_defaults(self):
+        """Reset all option settings to their default values"""
+        if not messagebox.askyesno("Reset Settings", "Reset all settings in this menu to defaults?"):
+            return
+            
+        # Reset internal variables
+        self.frame_var.set("3")
+        self.start_var.set("1")
+        self.end_var.set(str(self.max_frames))
+        self.format_var.set(False) # Transparent PNG
+        self.portrait_var.set(False)
+        self.cute_bg_var.set("no_cute_bg")
+        self.labels_var.set(True)
+        self.user_choice_var.set(False)
+        self.palette_format_var.set("png")
+        self.show_export_button_var.set(False)
+        self.live_pal_ui_var.set("Advanced")
+        self.show_dev_buttons_var.set(False)
+        self.show_excess_colors_prompt_var.set(True)
+        
+        # Update parent settings immediately (live sync)
+        if isinstance(self.parent, PaletteTool):
+            self.parent.use_bmp_export = False
+            self.parent.use_portrait_export = False
+            self.parent.cute_bg_option = "no_cute_bg"
+            self.parent.show_frame_labels = True
+            self.parent.use_frame_choice = False
+            self.parent.palette_format = "png"
+            self.parent.show_export_palette_button = False
+            self.parent.live_pal_ui_mode = "Advanced"
+            self.parent.show_dev_buttons = False
+            self.parent.dont_show_excess_colors_prompt = False
+            
+            # Update UI elements in parent
+            self.parent.update_export_button_text()
+            self.parent.update_zoom_combo_state()
+        
+        # Refresh dialog UI elements
+        self.validate_inputs()
+        self.toggle_export_button()
+        self.toggle_dev_buttons()
+        self.toggle_frame_choice()
+        self.update_bg_style_state()
+        
+        messagebox.showinfo("Reset Settings", "Settings have been reset to defaults.")
             
     def ok_clicked(self, close=True):
         try:
@@ -582,6 +637,8 @@ class CustomPreviewDialog:
                 self.parent.live_pal_ui_mode = self.live_pal_ui_var.get()  # Update live pal editor UI mode
                 self.parent.show_export_palette_button = self.show_export_button_var.get()  # Save checkbox state
                 self.parent.show_dev_buttons = self.show_dev_buttons_var.get()  # Save checkbox state
+                # Update excess colors prompt setting (invert because setting is "dont_show")
+                self.parent.dont_show_excess_colors_prompt = not self.show_excess_colors_prompt_var.get()
                 if self.user_choice_var.get():
                     self.parent.chosen_frame = int(self.frame_choice_var.get())  # Keep as 1-based
                 # Apply immediate frame settings for custom preview
@@ -691,7 +748,8 @@ class Statistics:
         self.frames_previewed = 0
         self.frames_skipped = 0  # Track frames skipped with navigation
 
-        self.start_time = time.time()
+        self.total_time_spent = 0.0  # Accumulated seconds from previous sessions
+        self.session_start_time = time.time()  # Start of current session
         self.character_edits = {}  # Dict to track edits per character/job
         self.exported_frames = 0
         self.exported_backgrounds = 0
@@ -707,6 +765,10 @@ class Statistics:
             'live_pal': 0,  # Indexes selected in live palette editor
             'live_icon': 0  # Indexes selected in live icon editor
         }
+        
+        # Index modification tracking (for live palette editor)
+        self.unique_indexes_modified = set()  # Set of unique palette indexes that have been modified
+        self.total_index_modifications = 0  # Total number of modification events (slider release, gradient apply, color replace)
         
     def add_palette_edit(self, char_id: str, job_type: str):
         """Track a palette edit for a character/job"""
@@ -743,15 +805,42 @@ class Statistics:
         return char_id, job_type, most_edited[1]['edits']
         
     def get_program_time(self):
-        """Get total time in program in HH:MM:SS format"""
-        total_seconds = int(time.time() - self.start_time)
+        """Get total cumulative time in program in HH:MM:SS format"""
+        # Calculate time spent in current session
+        current_session_seconds = time.time() - self.session_start_time
+        # Add to total accumulated time
+        total_seconds = int(self.total_time_spent + current_session_seconds)
+        
         hours = total_seconds // 3600
         minutes = (total_seconds % 3600) // 60
         seconds = total_seconds % 60
         return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    
+    def track_index_modification(self, index_or_indices):
+        """Track index modification event (slider release, gradient apply, or color replace)
+        
+        Args:
+            index_or_indices: Single index (int) or collection of indexes (list/set)
+        """
+        # Normalize to a list
+        if isinstance(index_or_indices, int):
+            indices = [index_or_indices]
+        else:
+            indices = list(index_or_indices)
+        
+        # Add to unique indexes modified
+        self.unique_indexes_modified.update(indices)
+        
+        # Increment total modification events
+        self.total_index_modifications += 1
         
     def to_dict(self):
         """Convert statistics to a dictionary for saving"""
+        # Update accumulated time with what's passed in current session so far
+        now = time.time()
+        self.total_time_spent += (now - self.session_start_time)
+        self.session_start_time = now # Reset session start to now
+        
         return {
             'live_palette_files_edited': list(self.live_palette_files_edited),
             'live_palette_files_saved': list(self.live_palette_files_saved),
@@ -759,7 +848,7 @@ class Statistics:
             'icons_saved': list(self.icons_saved),
             'frames_previewed': self.frames_previewed,
             'frames_skipped': self.frames_skipped,
-            'start_time': self.start_time,
+            'total_time_spent': self.total_time_spent,
             'character_edits': self.character_edits,
             'exported_frames': self.exported_frames,
             'exported_backgrounds': self.exported_backgrounds,
@@ -770,9 +859,11 @@ class Statistics:
             'indexes_saved_in_pals': self.indexes_saved_in_pals,
             'colors_saved_in_json': self.colors_saved_in_json,
             'preview_indexes_selected': self.preview_indexes_selected,
-            'palettes_previewed': self.palettes_previewed
+            'palettes_previewed': self.palettes_previewed,
+            'unique_indexes_modified': list(self.unique_indexes_modified),
+            'total_index_modifications': self.total_index_modifications
         }
-        
+
     @classmethod
     def from_dict(cls, data):
         """Create a Statistics instance from a dictionary"""
@@ -783,7 +874,22 @@ class Statistics:
         stats.icons_saved = set(data.get('icons_saved', []))
         stats.frames_previewed = data.get('frames_previewed', 0)
         stats.frames_skipped = data.get('frames_skipped', 0)
-        stats.start_time = data.get('start_time', time.time())
+        
+        # Load accumulated time
+        stats.total_time_spent = data.get('total_time_spent', 0.0)
+        
+        # Backward compatibility check for old 'start_time' key
+        if 'start_time' in data and 'total_time_spent' not in data:
+            old_val = data['start_time']
+            # If it's a timestamp (like 1700000000) or 0.0, it's the broken format.
+            # If it's a reasonably small number of seconds (e.g. < 1 year), it might be okay.
+            if 0 < old_val < 31536000: # Less than 1 year of seconds
+                stats.total_time_spent = old_val
+            else:
+                stats.total_time_spent = 0.0
+                
+        stats.session_start_time = time.time() # Start fresh session countdown
+        
         stats.character_edits = data.get('character_edits', {})
         stats.exported_frames = data.get('exported_frames', 0)
         stats.exported_backgrounds = data.get('exported_backgrounds', 0)
@@ -798,7 +904,37 @@ class Statistics:
             'live_icon': 0
         })
         stats.palettes_previewed = data.get('palettes_previewed', 0)
+        stats.unique_indexes_modified = set(data.get('unique_indexes_modified', []))
+        stats.total_index_modifications = data.get('total_index_modifications', 0)
         return stats
+
+class Tooltip:
+    """Class to create a tooltip for a widget"""
+    def __init__(self, widget, text):
+        self.widget = widget
+        self.text = text
+        self.tooltip_window = None
+        self.widget.bind("<Enter>", self.show_tooltip)
+        self.widget.bind("<Leave>", self.hide_tooltip)
+
+    def show_tooltip(self, event=None):
+        x, y, _, _ = self.widget.bbox("insert")
+        x += self.widget.winfo_rootx() + 25
+        y += self.widget.winfo_rooty() + 25
+
+        self.tooltip_window = tw = tk.Toplevel(self.widget)
+        tw.wm_overrideredirect(True)
+        tw.wm_geometry(f"+{x}+{y}")
+
+        label = tk.Label(tw, text=self.text, justify='left',
+                       background="#ffffe0", relief='solid', borderwidth=1,
+                       font=("Arial", "8", "normal"))
+        label.pack(ipadx=1)
+
+    def hide_tooltip(self, event=None):
+        if self.tooltip_window:
+            self.tooltip_window.destroy()
+            self.tooltip_window = None
 
 class StatisticsDialog:
     """Dialog to display program statistics"""
@@ -878,6 +1014,10 @@ class StatisticsDialog:
         self._add_stat(general_content, "Indexes Changed", stats.indexes_changed)
         self._add_stat(general_content, "Indexes Selected", stats.indexes_selected)
         self._add_stat(general_content, "Indexes Saved in PALs", stats.indexes_saved_in_pals)
+        
+        # Index Modification Tracking (New)
+        self._add_stat(general_content, "Unique Indexes Modified", len(stats.unique_indexes_modified))
+        self._add_stat(general_content, "Total Modification Events", stats.total_index_modifications)
         
         # Colors and Selections
         self._add_stat(general_content, "Colors Saved", stats.colors_saved)
@@ -1256,6 +1396,7 @@ class PaletteTool:
                 self.use_quick_export = global_settings.get('use_quick_export', False)
                 self.zoom_level = global_settings.get('zoom_level', "100%")
                 self.dont_show_excess_colors_prompt = global_settings.get('dont_show_excess_colors_prompt', False)
+                self.show_frame_options = global_settings.get('show_frame_options', True)  # New setting
                 
                 # Initialize session-only settings (cleared when program closes)
                 self.session_dont_show_excess_colors_prompt = False
@@ -1273,6 +1414,18 @@ class PaletteTool:
                 # Store per-character settings for later use
                 self.per_character_settings = data.get('per_character', {})
                 
+                # Load hidden frames and export frames (standardize keys to lowercase)
+                for char_job_raw, settings in self.per_character_settings.items():
+                    char_job = str(char_job_raw).strip().lower()
+                    if 'hidden_frames' in settings:
+                        self.hidden_frames[char_job] = set(settings['hidden_frames'])
+                        
+                    # Extract character ID (standardize to lowercase)
+                    if '_' in char_job:
+                        char_id = char_job.split('_')[0].strip().lower()
+                        if 'export_frame' in settings and char_id not in self.export_frames:
+                            self.export_frames[char_id] = settings['export_frame']
+                
         except (FileNotFoundError, json.JSONDecodeError):
             # Use defaults if file doesn't exist or is invalid
             self.per_character_settings = {}
@@ -1283,21 +1436,28 @@ class PaletteTool:
             self.last_frame = 0
             self.last_preview_mode = "single"
     
+        except Exception as e:
+            print(f"CONSOLE ERROR MSG: Error saving settings: {e}")
+    
     def _save_settings(self):
         """Save settings to file"""
         try:
             settings_path = self._get_settings_path()
             
-            # Load existing settings to preserve per-character data
+            # Load existing settings to preserve data not tracked in memory
             try:
                 with open(settings_path, 'r') as f:
                     data = json.load(f)
             except (FileNotFoundError, json.JSONDecodeError):
                 data = {'global': {}, 'per_character': {}}
             
-            # Update global settings (preserve dont_show_excess_colors_prompt if it exists)
-            existing_global = data.get('global', {})
-            data['global'] = {
+            # Ensure structure exists
+            if 'global' not in data: data['global'] = {}
+            if 'per_character' not in data: data['per_character'] = {}
+
+            # Update global settings
+            # We update individually to preserve unknown global keys
+            data['global'].update({
                 'use_bmp_export': self.use_bmp_export,
                 'use_portrait_export': self.use_portrait_export,
                 'cute_bg_option': self.cute_bg_option,
@@ -1309,21 +1469,42 @@ class PaletteTool:
                 'show_dev_buttons': self.show_dev_buttons,
                 'use_quick_export': self.use_quick_export,
                 'zoom_level': self.zoom_var.get() if hasattr(self, 'zoom_var') else "100%",
-                'background_color': list(self.background_color),  # Convert tuple to list for JSON
+                'background_color': list(self.background_color),
                 'dont_show_excess_colors_prompt': getattr(self, 'dont_show_excess_colors_prompt', False),
-                'dont_show_all_mode_warning': existing_global.get('dont_show_all_mode_warning', False),
-                'dont_show_50_frames_warning': existing_global.get('dont_show_50_frames_warning', False),
-                # Session state
+                'dont_show_all_mode_warning': data['global'].get('dont_show_all_mode_warning', False),
+                'dont_show_50_frames_warning': data['global'].get('dont_show_50_frames_warning', False),
+                'show_frame_options': getattr(self, 'show_frame_options', True),
                 'last_character': self.current_character,
                 'last_job': self.current_job,
                 'last_frame': self.current_image_index,
                 'last_preview_mode': self.preview_var.get() if hasattr(self, 'preview_var') else "single"
-            }
+            })
             
-            # Keep per-character settings
-            if not hasattr(self, 'per_character_settings'):
-                self.per_character_settings = {}
-            data['per_character'] = self.per_character_settings
+            # Update per-character settings
+            # 1. Merge basic character settings from memory (last_viewed, custom counts)
+            if hasattr(self, 'per_character_settings'):
+                for char_id, settings in self.per_character_settings.items():
+                    if char_id not in data['per_character']:
+                        data['per_character'][char_id] = {}
+                    data['per_character'][char_id].update(settings)
+            
+            # 2. Sync runtime hidden frames (Authoritative source)
+            if hasattr(self, 'hidden_frames'):
+                for char_job_raw, hidden_set in self.hidden_frames.items():
+                    char_job = str(char_job_raw).strip().lower()
+                    if char_job not in data['per_character']:
+                        data['per_character'][char_job] = {}
+                    data['per_character'][char_job]['hidden_frames'] = list(hidden_set)
+            
+            # 3. Sync runtime export frames
+            if hasattr(self, 'export_frames'):
+                for char_id_raw, frame_idx in self.export_frames.items():
+                    char_id = str(char_id_raw).strip().lower()
+                    # Apply to all existing job variants for this character in the data
+                    # This ensures we don't miss any job variants that exist in the file
+                    for char_job in list(data['per_character'].keys()):
+                        if char_job.startswith(char_id + '_'):
+                            data['per_character'][char_job]['export_frame'] = frame_idx
             
             # Save to file
             with open(settings_path, 'w') as f:
@@ -1331,6 +1512,44 @@ class PaletteTool:
                 
         except Exception as e:
             print(f"CONSOLE ERROR MSG: Error saving settings: {e}")
+    
+    def _save_per_character_frame_settings(self):
+        """Save per-character hidden frames and export frames to settings"""
+        try:
+            settings_path = self._get_settings_path()
+            
+            # Load existing settings
+            try:
+                with open(settings_path, 'r') as f:
+                    data = json.load(f)
+            except (FileNotFoundError, json.JSONDecodeError):
+                data = {'global': {}, 'per_character': {}}
+            
+            # Ensure per_character section exists
+            if 'per_character' not in data:
+                data['per_character'] = {}
+            
+            # Update hidden frames for each character+job
+            for char_job_raw, hidden_set in self.hidden_frames.items():
+                char_job = str(char_job_raw).strip().lower()
+                if char_job not in data['per_character']:
+                    data['per_character'][char_job] = {}
+                data['per_character'][char_job]['hidden_frames'] = list(hidden_set)
+            
+            # Update export frames for each character
+            for char_id_raw, frame_idx in self.export_frames.items():
+                char_id = str(char_id_raw).strip().lower()
+                # Find all char_job keys for this character
+                for char_job in list(data['per_character'].keys()):
+                    if str(char_job).lower().startswith(char_id + '_'):
+                        data['per_character'][char_job]['export_frame'] = frame_idx
+            
+            # Save to file
+            with open(settings_path, 'w') as f:
+                json.dump(data, f, indent=4)
+                
+        except Exception as e:
+            print(f"CONSOLE ERROR MSG: Error saving per-character frame settings: {e}")
     
     def _get_all_mode_warning_preference(self):
         """Get the 'don't show all mode warning' preference from settings"""
@@ -1421,28 +1640,46 @@ class PaletteTool:
     
     def _load_character_settings(self, char_id):
         """Load per-character settings for the given character"""
+        char_id = str(char_id).strip().lower()
         if not hasattr(self, 'per_character_settings'):
             self.per_character_settings = {}
             
         char_settings = self.per_character_settings.get(char_id, {})
         
-        # Only load per-character settings (frame-related)
+        # Load per-character settings
         self.custom_frame_count = char_settings.get('custom_frame_count', 1)
         self.custom_start_index = char_settings.get('custom_start_index', 0)
         self.use_frame_choice = char_settings.get('use_frame_choice', False)
         self.chosen_frame = char_settings.get('chosen_frame', 1)
+        # Load last viewed frame index
+        self.current_image_index = char_settings.get('last_viewed_frame', 0)
+        
+        # Store loaded palettes for UI update methods to use
+        self.loaded_palettes = char_settings.get('palette_selections', {})
     
     def _save_character_settings(self, char_id):
         """Save per-character settings for the given character"""
+        char_id = str(char_id).strip().lower()
         if not hasattr(self, 'per_character_settings'):
             self.per_character_settings = {}
         
-        # Save per-character settings (frame-related only)
+        # Capture current palette selections if they exist
+        palette_selections = {}
+        if hasattr(self, 'hair_var'):
+            palette_selections['hair'] = self.hair_var.get()
+        if hasattr(self, 'third_job_var'):
+            palette_selections['third_job'] = self.third_job_var.get()
+        if hasattr(self, 'fashion_vars'):
+            palette_selections['fashion'] = {k: v.get() for k, v in self.fashion_vars.items()}
+            
+        # Save per-character settings (including palette selections)
         self.per_character_settings[char_id] = {
             'custom_frame_count': self.custom_frame_count,
             'custom_start_index': self.custom_start_index,
             'use_frame_choice': self.use_frame_choice,
-            'chosen_frame': self.chosen_frame
+            'chosen_frame': self.chosen_frame,
+            'last_viewed_frame': self.current_image_index,
+            'palette_selections': palette_selections
         }
         
         # Save to file
@@ -1455,8 +1692,10 @@ class PaletteTool:
         self._load_statistics()
         
         self.master = master
-        self.master.title("Fashion Previewer v4.1 - A CoraTO & Kyo Collab")
-
+        self.master.title("Fashion Previewer v4.2 - A CoraTO & Kyo Collab")
+        # And perhaps our last update we'll ever have or need
+        # We'll miss you Kyo
+        
         # Dictionary to store frame range settings per character/job
         # Format: {char_id: {job: (frame_count, start_frame, end_frame)}}
         self.frame_range_settings = {}
@@ -1493,6 +1732,10 @@ class PaletteTool:
         self.show_dev_buttons = False  # Show Dev Buttons checkbox state
         
         # Load settings from file (will override defaults)
+        self.hidden_frames = {}
+        self.export_frames = {}
+        self.loaded_palettes = {}
+        self.frame_range_settings = {}
         self._load_settings()
         
         # HSL adjustment settings with defaults
@@ -1529,6 +1772,28 @@ class PaletteTool:
         self.third_job_var = tk.StringVar()
         self.zoom_var = tk.StringVar(value=getattr(self, 'zoom_level', "100%"))
         self.fashion_vars = {}  # Track fashion selection variables
+        
+        # Frame options tracking
+        self.selected_frame = None  # Tracks user-clicked frame (None = current/first displayed)
+        self.selected_frames = set() # Tracks multiple selected frames
+        self.last_frame_click_time = 0  # For double-click detection
+        self.last_clicked_frame = None  # For double-click detection
+        import time
+        self._time_module = time  # Store reference for click timing
+        
+        # View mode toggle (Big Picture Mode vs Small Preview Mode)
+        self.view_mode = "big_picture"  # Options: "big_picture", "small_preview"
+        
+        # Frame visibility undo history (up to 5 steps)
+        self.frame_visibility_history = []  # List of (char_job_key, hidden_frames_snapshot) tuples
+        self.max_undo_steps = 5
+        
+        # Last selected palette for live editor
+        self.last_selected_palette = None  # Stores the last clicked palette info
+        self.last_selected_palette_type = None  # 'hair', 'fashion', 'third_job'
+        
+        # Initialization flag to prevent display updates during startup
+        self._is_initializing = True
         
         # Load all available data
         self.load_all_data()
@@ -1618,9 +1883,18 @@ class PaletteTool:
         if hasattr(self, 'update_navigation_buttons'):
             self.update_navigation_buttons()
         
+        # Clear initialization flag - now display updates will work normally
+        self._is_initializing = False
+        
+        # Do a single final display update now that everything is loaded
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+        
         # Set up window close handler to save settings and statistics
         def on_app_close():
             """Save settings and statistics before closing"""
+            if self.current_character:
+                self._save_character_settings(self.current_character)
             self._save_settings()
             self._save_statistics()
             self.master.destroy()
@@ -1762,25 +2036,548 @@ class PaletteTool:
         # If we can't find a good alternative, return a safe default
         return (128, 128, 128)  # Gray as fallback
     
+    def _get_char_job_key(self):
+        """Get the character+job key for settings lookup (standardized to lowercase)"""
+        if hasattr(self, 'current_character') and hasattr(self, 'current_job'):
+            # Standardize character and job names to lowercase to ensure consistency
+            char = str(self.current_character).strip().lower()
+            job = str(self.current_job).strip().lower()
+            return f"{char}_{job}"
+        return None
+    
+    def _get_current_or_selected_frame(self):
+        """Get the frame index to operate on (selected frame or current displayed frame)"""
+        if self.selected_frame is not None:
+            return self.selected_frame
+        # Return first displayed frame in current mode
+        if self.preview_var.get() in ["custom", "all"]:
+            # Get first visible frame
+            images = self.character_images.get(self.current_character, [])
+            char_job_key = self._get_char_job_key()
+            hidden = self.hidden_frames.get(char_job_key, set())
+            for i in range(len(images)):
+                if i not in hidden:
+                    return i
+            return 0  # Fallback
+        else:
+            return self.current_image_index
+
+    def _get_selected_frames_list(self):
+        """Get a list of frame indices to operate on (all selected frames, or primary selection if none)"""
+        if self.selected_frames:
+            return sorted(list(self.selected_frames))
+        return [self._get_current_or_selected_frame()]
+    
+    def _select_frame(self, frame_index, event=None):
+        """Select a frame (toggle selection on double-click, support Shift/Ctrl for multi-select)"""
+        current_time = self._time_module.time()
+        
+        # Detect Shift key (bit 0x0001) and Control key (bit 0x0004)
+        shift_held = event and (event.state & 0x0001)
+        ctrl_held = event and (event.state & 0x0004)
+        
+        if shift_held and self.last_clicked_frame is not None:
+            # Range selection
+            start_idx = min(self.last_clicked_frame, frame_index)
+            end_idx = max(self.last_clicked_frame, frame_index)
+            # Add all in range to selection
+            for i in range(start_idx, end_idx + 1):
+                self.selected_frames.add(i)
+            # Update single selected_frame for UI backwards compatibility
+            self.selected_frame = frame_index
+        elif ctrl_held:
+            # Toggle individual frame
+            if frame_index in self.selected_frames:
+                self.selected_frames.remove(frame_index)
+            else:
+                self.selected_frames.add(frame_index)
+            self.selected_frame = frame_index if self.selected_frames else None
+        else:
+            # Normal selection logic (clears others unless it's a double-click deselect within 300ms)
+            is_double_click = (self.last_clicked_frame == frame_index and 
+                             current_time - self.last_frame_click_time < 0.3)
+            
+            if is_double_click:
+                # Double-click - set this frame for export
+                self.selected_frames = {frame_index}
+                self.selected_frame = frame_index
+                self._set_export_frame()
+                self.last_clicked_frame = None
+            else:
+                # Single click - select only this one
+                self.selected_frames = {frame_index}
+                self.selected_frame = frame_index
+                self.last_clicked_frame = frame_index
+        
+        self.last_frame_click_time = current_time
+        self._redraw_frames_with_selection()
+    
+    def _deselect_frame(self, refresh=True):
+        """Deselect all frames"""
+        self.selected_frame = None
+        self.selected_frames.clear()
+        self.last_clicked_frame = None
+        if refresh:
+            self._redraw_frames_with_selection()
+    
+    def _hide_current_frame(self):
+        """Hide all currently selected frames"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+        
+        frames_to_hide = self._get_selected_frames_list()
+        
+        if char_job_key not in self.hidden_frames:
+            self.hidden_frames[char_job_key] = set()
+        
+        for idx in frames_to_hide:
+            self.hidden_frames[char_job_key].add(idx)
+            # Log as requested by user for individual tracking
+            print(f"DEBUG[hide]: Hiding frame {idx + 1} for {char_job_key}")
+            
+        self._save_per_character_frame_settings()
+        
+        # Clear selected frames that were hidden
+        for idx in frames_to_hide:
+            if idx in self.selected_frames:
+                self.selected_frames.remove(idx)
+        if self.selected_frame in frames_to_hide:
+            self.selected_frame = next(iter(self.selected_frames)) if self.selected_frames else None
+            
+        # Auto-advance for Single View if current frame was hidden
+        preview_mode = self.preview_var.get().lower()
+        if preview_mode == "single" and self.current_image_index in self.hidden_frames.get(char_job_key, set()):
+            images = self.character_images.get(self.current_character, [])
+            total = len(images)
+            if total > 0:
+                next_idx = (self.current_image_index + 1) % total
+                hid_set = self.hidden_frames.get(char_job_key, set())
+                checked = 0
+                while next_idx in hid_set and checked < total:
+                    next_idx = (next_idx + 1) % total
+                    checked += 1
+                
+                if next_idx != self.current_image_index:
+                    self.current_image_index = next_idx
+                    if next_idx < len(images):
+                        self.load_image_from_path(images[next_idx])
+                        return # display updated
+            
+        # Refresh display
+        self.update_image_display()
+    
+    def _show_previous_frame(self):
+        """Show the previous hidden frame (searching backwards)"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+        
+        current_frame = self._get_current_or_selected_frame()
+        images = self.character_images.get(self.current_character, [])
+        total_frames = len(images)
+        
+        if total_frames == 0:
+            return
+        
+        hidden = self.hidden_frames.get(char_job_key, set())
+        if not hidden:
+            messagebox.showinfo("No Hidden Frames", "There are no hidden frames to show.")
+            return
+        
+        # Search backwards from current frame
+        search_idx = (current_frame - 1) % total_frames
+        checked = 0
+        
+        while checked < total_frames:
+            if search_idx in hidden:
+                # Found a hidden frame - unhide it
+                hidden.remove(search_idx)
+                print(f"DEBUG[show]: Unhiding frame {search_idx + 1} for {char_job_key}")
+                self._save_per_character_frame_settings()
+                
+                # Navigate to the frame
+                if self.preview_var.get() == "single":
+                    self.current_image_index = search_idx
+                else:
+                    self.selected_frame = search_idx
+                    self.selected_frames = {search_idx}
+                
+                self.update_image_display()
+                return
+            search_idx = (search_idx - 1) % total_frames
+            checked += 1
+        
+        messagebox.showinfo("No Hidden Frames", "No hidden frames found before this position.")
+    
+    def _show_all_frames(self):
+        """Unhide all hidden frames for the current character/job"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+            
+        hidden = self.hidden_frames.get(char_job_key, set())
+        if not hidden:
+            messagebox.showinfo("No Hidden Frames", "There are no hidden frames to unhide.")
+            return
+            
+        count = len(hidden)
+        if not messagebox.askyesno("Show All", f"Unhide all {count} hidden frames for {char_job_key}?"):
+            return
+            
+        self.hidden_frames[char_job_key] = set()
+        print(f"DEBUG[show_all]: Unhiding all {count} frames for {char_job_key}")
+        self._save_per_character_frame_settings()
+        self.update_image_display()
+    
+    def _set_export_frame(self):
+        """Set the current or selected frame as the export frame for this character"""
+        if not hasattr(self, 'current_character') or not self.current_character:
+            return
+        
+        frame_idx = self._get_current_or_selected_frame()
+        self.export_frames[self.current_character] = frame_idx
+        self._save_per_character_frame_settings()
+        messagebox.showinfo("Export Frame Set", f"Frame {frame_idx + 1} set as export frame for {self.current_character}")
+        
+    def _show_next_frame(self):
+        """Show the next hidden frame (searching forwards)"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+        
+        current_frame = self._get_current_or_selected_frame()
+        images = self.character_images.get(self.current_character, [])
+        total_frames = len(images)
+        
+        if total_frames == 0:
+            return
+        
+        hidden = self.hidden_frames.get(char_job_key, set())
+        if not hidden:
+            return
+        
+        # Search forwards from current frame
+        search_idx = (current_frame + 1) % total_frames
+        checked = 0
+        
+        while checked < total_frames:
+            if search_idx in hidden:
+                # Found a hidden frame - unhide it
+                hidden.remove(search_idx)
+                print(f"DEBUG[show]: Unhiding frame {search_idx + 1} for {char_job_key}")
+                self._save_per_character_frame_settings()
+                
+                # Navigate to the frame
+                if self.preview_var.get() == "single":
+                    self.current_image_index = search_idx
+                else:
+                    self.selected_frame = search_idx
+                    self.selected_frames = {search_idx}
+                
+                self.update_image_display()
+                return
+            search_idx = (search_idx + 1) % total_frames
+            checked += 1
+    
+    def _show_frame_context_menu(self, event, frame_index=None):
+        """Show context menu for frame options, handling multiple selection"""
+        # Select the frame if not already selected
+        if frame_index is not None and frame_index not in self.selected_frames:
+            ctrl_held = event and (event.state & 0x0004)
+            if not ctrl_held and not (event and (event.state & 0x0001)): # Regular right-click clears if not multi-selecting
+                self._select_frame(frame_index, event)
+        
+        context_menu = tk.Menu(self.master, tearoff=0)
+        
+        # Get character info for hide/show logic
+        char_job_key = self._get_char_job_key()
+        hidden = self.hidden_frames.get(char_job_key, set())
+        current_frame = self._get_current_or_selected_frame()
+        images = self.character_images.get(self.current_character, [])
+        total_frames = len(images)
+        
+        # Determine labels based on multi-selection
+        sel_count = len(self.selected_frames)
+        if sel_count > 1:
+            hide_label = f"Hide {sel_count} Selected Frames"
+        elif sel_count == 1:
+            idx = self.selected_frame
+            hide_label = f"Hide Selected Frame ({idx + 1})"
+        else:
+            current_frame = self._get_current_or_selected_frame()
+            hide_label = f"Hide Current Frame ({current_frame + 1})"
+        
+        context_menu.add_command(label=hide_label, command=self._hide_current_frame)
+        
+        # Show "Show Next Hidden Frame" if the next frame is hidden
+        if total_frames > 0:
+            next_idx = (current_frame + 1) % total_frames
+            if next_idx in hidden:
+                context_menu.add_command(label=f"Show Next Hidden Frame ({next_idx + 1})", 
+                                       command=self._show_next_frame)
+        
+        context_menu.add_command(label="Show Previous Hidden Frame", command=self._show_previous_frame)
+        context_menu.add_command(label="Show All Hidden Frames", command=self._show_all_frames)
+        context_menu.add_separator()
+        
+        def export_bg_cmd():
+            target_frames = self._get_selected_frames_list()
+            for frame_idx in target_frames:
+                if getattr(self, 'use_bmp_export', False):
+                    self.export_background_bmp(frame=frame_idx)
+                else:
+                    old_idx = self.current_image_index
+                    self.current_image_index = frame_idx
+                    try:
+                        self.export_transparent_png()
+                    finally:
+                        self.current_image_index = old_idx
+                    
+        ext = "BMP" if getattr(self, 'use_bmp_export', False) else "PNG"
+        context_menu.add_command(label=f"Export Background {ext} (Selected)", command=export_bg_cmd)
+        
+        try:
+            context_menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            context_menu.grab_release()
+    
+    def _find_layer_by_pixel_index(self, pixel_idx):
+        """Find the active layer that contains the given pixel index"""
+        if not hasattr(self, 'palette_layers'):
+            return None
+            
+        char_num = self.current_character.replace("chr", "")
+        # Filter for active layers
+        active_layers = [ly for ly in self.palette_layers if getattr(ly, "active", False)]
+        
+        found_layer = None
+        for ly in active_layers:
+            ptype = getattr(ly, "palette_type", "")
+            if not ptype: continue
+            
+            ranges = self.get_character_palette_ranges(char_num, ptype)
+            if ranges:
+                for r in ranges:
+                    if pixel_idx in r:
+                        found_layer = ly
+                        break
+            if found_layer: break
+            
+        return found_layer
+
+    def _identify_layer_from_click(self, frame_idx, event):
+        """Identify which layer corresponds to the clicked pixel and update selection"""
+        if not hasattr(self, 'current_character') or not self.current_character:
+            return
+            
+        # Removed strict Live Editor checks to allow updating global selection on click
+
+        # Get the item clicked - verify it is an image
+        try:
+            # Check for overlapping items to handle cases where selection box is on top
+            items = self.canvas.find_overlapping(event.x, event.y, event.x, event.y)
+            item_id = None
+            for item in reversed(items):  # internal tags often last
+                if self.canvas.type(item) == "image":
+                    item_id = item
+                    break
+            
+            if not item_id:
+                # Fallback to closest
+                closest = self.canvas.find_closest(event.x, event.y)
+                if closest and self.canvas.type(closest[0]) == "image":
+                    item_id = closest[0]
+            
+            if not item_id:
+                return
+        except:
+            return
+
+        # Get Zoom info
+        try:
+            zoom_str = self.zoom_var.get()
+            if zoom_str == "Fit":
+                # For Fit mode, we re-calculate scale roughly
+                canvas_width = self.canvas.winfo_width()
+                canvas_height = self.canvas.winfo_height()
+                padding = 10
+                
+                # Get original image dimensions
+                images = self.character_images.get(self.current_character, [])
+                if frame_idx >= len(images): return
+                path = images[frame_idx]
+                
+                with Image.open(path) as img:
+                    orig_w, orig_h = img.size
+                    
+                avail_w = canvas_width - (padding * 2)
+                avail_h = canvas_height - (padding * 2)
+                scale_x = avail_w / orig_w
+                scale_y = avail_h / orig_h
+                scale = min(scale_x, scale_y, 1.0)
+            else:
+                scale = float(zoom_str.strip('%')) / 100.0
+        except:
+            scale = 1.0
+
+        # Map click to original image coordinates
+        img_coords = self.canvas.coords(item_id)
+        if not img_coords: return
+        img_x, img_y = img_coords
+        anchor = self.canvas.itemcget(item_id, "anchor")
+        
+        # Get original image path
+        images = self.character_images.get(self.current_character, [])
+        if frame_idx >= len(images): return
+        path = images[frame_idx]
+        
+        try:
+            with Image.open(path) as img:
+                orig_w, orig_h = img.size
+                
+                # Calculate displayed dimensions
+                disp_w = int(orig_w * scale)
+                disp_h = int(orig_h * scale)
+                
+                # Calculate top-left of displayed image
+                if anchor == "center":
+                    x0 = img_x - disp_w // 2
+                    y0 = img_y - disp_h // 2
+                elif anchor == "n":
+                    x0 = img_x - disp_w // 2
+                    y0 = img_y
+                else: # "nw"
+                    x0, y0 = img_x, img_y
+                
+                # Relative coordinates
+                if scale > 0:
+                    rel_x = int((event.x - x0) / scale)
+                    rel_y = int((event.y - y0) / scale)
+                else:
+                    return
+
+                # Check bounds
+                if 0 <= rel_x < orig_w and 0 <= rel_y < orig_h:
+                    pixel_idx = img.getpixel((rel_x, rel_y))
+                    
+                    # Identify Layer
+                    found_layer = self._find_layer_by_pixel_index(pixel_idx)
+                    
+                    if found_layer:
+                        # Update global selection
+                        self.last_selected_palette = found_layer.name
+                        
+                        # Switch Live Editor Selection if open
+                        if (hasattr(self, '_live_editor_window') and self._live_editor_window and 
+                            self._live_editor_window.winfo_exists() and hasattr(self, '_live_target_name')):
+                            # Only update if different to avoid flickering/loops
+                            if self._live_target_name.get() != found_layer.name:
+                                self._live_target_name.set(found_layer.name)
+                                self._live_on_target_changed()
+
+        except Exception as e:
+            # Silently fail if image issues
+            pass
+
+    
+    def _redraw_frames_with_selection(self):
+        """Redraw frames to show selection highlights"""
+        # Optimized partial update for All/Custom modes
+        mode = self.preview_var.get()
+        if mode in ["all", "custom"]:
+            if hasattr(self, 'canvas') and self.canvas.find_all():
+                self.canvas.delete("selection")
+                
+                # Draw selection box for all selected frames
+                targets = self.selected_frames if self.selected_frames else (
+                    {self.selected_frame} if self.selected_frame is not None else set()
+                )
+                
+                for idx in targets:
+                    items = self.canvas.find_withtag(f"frame_{idx}")
+                    if items:
+                         for item in items:
+                             bbox = self.canvas.bbox(item)
+                             if bbox:
+                                  x1, y1, x2, y2 = bbox
+                                  self.canvas.create_rectangle(x1-2, y1-2, x2+2, y2+2,
+                                        outline="red", width=2, tags="selection")
+                return
+
+        # Fallback to full update
+        self.update_image_display()
+
+
     def load_all_data(self):
         """Load all available characters, images, and palettes"""
         # Fix working directory first
         fix_working_directory()
         
+        # Build map of (name, job) -> char_id to support new folder structure
+        name_job_map = {}
+        for char_id, info in CHARACTER_MAPPING.items():
+            if 'name' in info and 'job' in info:
+                # Identify primary ID: prefer ID that doesn't have 'main_id' key
+                if 'main_id' in info:
+                    continue
+                key = (info['name'].lower(), info['job'].lower())
+                name_job_map[key] = char_id
+
         # Load character images from rawbmps folder
         rawbmps_path = "rawbmps"
         if os.path.exists(rawbmps_path):
-            for char_folder in os.listdir(rawbmps_path):
-                if char_folder.startswith("chr") and os.path.isdir(os.path.join(rawbmps_path, char_folder)):
-                    char_path = os.path.join(rawbmps_path, char_folder)
+            for entry in os.listdir(rawbmps_path):
+                entry_path = os.path.join(rawbmps_path, entry)
+                if not os.path.isdir(entry_path):
+                    continue
+                    
+                # Case 1: Legacy structure - direct chrXXX folders
+                entry_lower = entry.lower()
+                if entry_lower.startswith("chr") and entry_lower in [k.lower() for k in CHARACTER_MAPPING.keys()]:
+                    char_id = None
+                    # Find the actual key case from CHARACTER_MAPPING
+                    for k in CHARACTER_MAPPING:
+                        if k.lower() == entry_lower:
+                            char_id = k
+                            break
+                    
+                    if char_id:
+                        char_path = entry_path
                     images = []
                     for file in os.listdir(char_path):
                         if file.lower().endswith(('.bmp', '.png')):
                             images.append(os.path.join(char_path, file))
                     if images:
-                        self.character_images[char_folder] = sorted(images)
-                        if char_folder in CHARACTER_MAPPING:
-                            self.available_characters.append(char_folder)
+                        self.character_images[char_id] = sorted(images)
+                        if char_id not in self.available_characters:
+                            self.available_characters.append(char_id)
+                            
+                # Case 2: New structure - "N. Name" folders with job subfolders
+                else:
+                    # Match "1. Bunny" -> "Bunny"
+                    match = re.match(r'^\d+\.\s*(.+)$', entry)
+                    char_name_key = match.group(1).lower() if match else entry.lower()
+                    
+                    # Scan for job subfolders
+                    for sub in os.listdir(entry_path):
+                        sub_path = os.path.join(entry_path, sub)
+                        if os.path.isdir(sub_path):
+                            job_key = sub.lower() # "1st job", etc
+                            
+                            key = (char_name_key, job_key)
+                            if key in name_job_map:
+                                char_id = name_job_map[key]
+                                
+                                images = []
+                                for file in os.listdir(sub_path):
+                                    if file.lower().endswith(('.bmp', '.png')):
+                                        images.append(os.path.join(sub_path, file))
+                                
+                                if images:
+                                    self.character_images[char_id] = sorted(images)
+                                    if char_id not in self.available_characters:
+                                        self.available_characters.append(char_id)
         
         # Load fashion palettes from nonremovable_assets/vanilla_pals/fashion folder
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -2150,6 +2947,299 @@ class PaletteTool:
         self.on_preview_mode_change()
     
     
+    def on_palette_selection_change(self, palette_type, palette_path):
+        """Handle palette selection change for the compact editor"""
+        # Save selection
+        self.last_selected_palette = palette_path
+        self.last_selected_palette_type = palette_type
+        
+        # Update UI if available
+        if hasattr(self, 'update_compact_palette_editor'):
+            self.update_compact_palette_editor()
+
+    def update_compact_palette_editor(self):
+        """Update active colors display in compact mode"""
+        if not hasattr(self, 'active_colors_frame') or not self.active_colors_frame:
+            return
+            
+        # Clear existing contents correctly
+        for widget in self.active_colors_frame.winfo_children():
+            widget.destroy()
+            
+        # Initialize widget tracking
+        self._compact_swatch_widgets = {}
+            
+        # Check if we have a selected palette
+        if not hasattr(self, 'last_selected_palette') or not self.last_selected_palette or self.last_selected_palette == "NONE":
+             tk.Label(self.active_colors_frame, text="Choose a pal to see active colors", 
+                      fg="gray", bg="white").pack(expand=True)
+             return
+
+        # Initialize selected colors set for compact editor
+        if not hasattr(self, 'compact_selected_colors'):
+            self.compact_selected_colors = set()
+        
+        # Reset base colors for sliders when recreating editor/switching palette
+        if hasattr(self, 'compact_base_colors'):
+            # Only clear if we explicitly want to (usually we persist selection? No, reset on redraw usually implies refresh)
+            # Actually, let's keep it unless empty to support redraws
+            pass
+        else:
+            self.compact_base_colors = {}
+
+        # Find the PaletteLayer or Dummy Layer
+        colors = []
+        editable_indices = []
+        target_layer = None
+        target_path = os.path.abspath(self.last_selected_palette)
+        target_filename = os.path.basename(target_path)
+        
+        # Try finding layer by name and type first (Live Editor approach)
+        if hasattr(self, 'palette_layers'):
+            for layer in self.palette_layers:
+                if getattr(layer, "name", "") == target_filename:
+                    if hasattr(self, 'last_selected_palette_type') and self.last_selected_palette_type:
+                        if getattr(layer, "palette_type", "") == self.last_selected_palette_type:
+                            target_layer = layer
+                            break
+                    else: 
+                         target_layer = layer
+                         break
+            
+            # Fallback to name only
+            if not target_layer:
+                for layer in self.palette_layers:
+                    if getattr(layer, "name", "") == target_filename:
+                        target_layer = layer
+                        break
+        
+        if target_layer:
+            self._compact_active_layer = target_layer
+            colors = target_layer.colors
+            editable_indices = self._get_editable_color_indices(target_layer)
+        else:
+            self._compact_active_layer = None
+            # Fallback: Load from file and use Dummy Layer
+            try:
+                with open(self.last_selected_palette, "rb") as f:
+                    data = f.read()
+                    if len(data) == 768:
+                        for i in range(256):
+                            colors.append((data[i*3], data[i*3+1], data[i*3+2]))
+                        
+                        # Prepare Dummy Layer for filtering
+                        p_type = "unknown"
+                        if hasattr(self, 'last_selected_palette_type') and self.last_selected_palette_type:
+                            p_type = self.last_selected_palette_type
+                        elif hasattr(self, 'categorize_palette'):
+                            p_type = self.categorize_palette(target_filename)
+                        
+                        # Ensure filename includes character ID for parsing
+                        dummy_name = target_filename
+                        if hasattr(self, 'current_character') and self.current_character:
+                            if self.current_character not in dummy_name:
+                                dummy_name = f"{self.current_character}_{dummy_name}"
+                        
+                        class DummyLayer:
+                            def __init__(self, name, colors, palette_type):
+                                self.name = name
+                                self.colors = colors
+                                self.palette_type = palette_type
+                        
+                        dummy = DummyLayer(dummy_name, colors, p_type)
+                        editable_indices = self._get_editable_color_indices(dummy)
+                        
+                        if not editable_indices:
+                            editable_indices = list(range(256))
+                        self._compact_active_layer = dummy
+            except Exception as e:
+                pass
+                
+        if not colors:
+             tk.Label(self.active_colors_frame, text="Failed to load colors", 
+                      fg="red", bg="white").pack(expand=True)
+             return
+
+        if not editable_indices:
+             editable_indices = list(range(len(colors)))
+             
+        # Filter indices (remove 255 explicitly)
+        filtered_indices = [x for x in editable_indices if x != 255]
+
+        # --- LAYOUT CONSTRUCTION ---
+        
+        # Left column: HSV sliders
+        left_column = tk.Frame(self.active_colors_frame, bg="white", width=180)
+        left_column.pack(side="left", fill="both", padx=5, pady=5)
+        left_column.pack_propagate(False)  # Fixed width
+        
+        tk.Label(left_column, text="HSV Adjustments", font=("Arial", 9, "bold"), bg="white").pack(pady=(0, 5))
+        
+        def _compact_hsv_slider_changed_proxy(*args):
+            if hasattr(self, '_compact_hsv_slider_changed'):
+                self._compact_hsv_slider_changed(*args)
+
+        def _compact_hsv_entry_changed_proxy(*args):
+             if hasattr(self, '_compact_hsv_entry_changed'):
+                 self._compact_hsv_entry_changed(*args)
+
+        # Hue slider
+        hue_frame = tk.Frame(left_column, bg="white")
+        hue_frame.pack(fill="x", pady=1)
+        tk.Label(hue_frame, text="Hue:", width=5, anchor="w", bg="white", font=("Arial", 8)).pack(side="left")
+        
+        if not hasattr(self, 'compact_hue_var'): self.compact_hue_var = tk.IntVar(value=0)
+        hue_slider = tk.Scale(hue_frame, from_=-180, to=180, orient="horizontal", 
+                             resolution=1, bg="white", highlightthickness=0, variable=self.compact_hue_var,
+                             command=_compact_hsv_slider_changed_proxy)
+        hue_slider.pack(side="left", fill="x", expand=True)
+        self.hue_slider = hue_slider # store ref
+        
+        hue_entry = tk.Entry(hue_frame, textvariable=self.compact_hue_var, width=5, font=("Arial", 8))
+        hue_entry.pack(side="left", padx=1)
+        hue_entry.bind('<Return>', lambda e: _compact_hsv_entry_changed_proxy())
+        hue_entry.bind('<FocusOut>', lambda e: _compact_hsv_entry_changed_proxy())
+        
+        # Saturation slider
+        sat_frame = tk.Frame(left_column, bg="white")
+        sat_frame.pack(fill="x", pady=1)
+        tk.Label(sat_frame, text="Sat:", width=5, anchor="w", bg="white", font=("Arial", 8)).pack(side="left")
+        
+        if not hasattr(self, 'compact_sat_var'): self.compact_sat_var = tk.IntVar(value=0)
+        sat_slider = tk.Scale(sat_frame, from_=-100, to=100, orient="horizontal", 
+                             resolution=1, bg="white", highlightthickness=0, variable=self.compact_sat_var,
+                             command=_compact_hsv_slider_changed_proxy)
+        sat_slider.pack(side="left", fill="x", expand=True)
+        self.sat_slider = sat_slider
+        
+        sat_entry = tk.Entry(sat_frame, textvariable=self.compact_sat_var, width=5, font=("Arial", 8))
+        sat_entry.pack(side="left", padx=1)
+        sat_entry.bind('<Return>', lambda e: _compact_hsv_entry_changed_proxy())
+        sat_entry.bind('<FocusOut>', lambda e: _compact_hsv_entry_changed_proxy())
+        
+        # Value slider
+        val_frame = tk.Frame(left_column, bg="white")
+        val_frame.pack(fill="x", pady=1)
+        tk.Label(val_frame, text="Val:", width=5, anchor="w", bg="white", font=("Arial", 8)).pack(side="left")
+        
+        if not hasattr(self, 'compact_val_var'): self.compact_val_var = tk.IntVar(value=0)
+        val_slider = tk.Scale(val_frame, from_=-100, to=100, orient="horizontal", 
+                             resolution=1, bg="white", highlightthickness=0, variable=self.compact_val_var,
+                             command=_compact_hsv_slider_changed_proxy)
+        val_slider.pack(side="left", fill="x", expand=True)
+        self.val_slider = val_slider
+        
+        val_entry = tk.Entry(val_frame, textvariable=self.compact_val_var, width=5, font=("Arial", 8))
+        val_entry.pack(side="left", padx=1)
+        val_entry.bind('<Return>', lambda e: _compact_hsv_entry_changed_proxy())
+        val_entry.bind('<FocusOut>', lambda e: _compact_hsv_entry_changed_proxy())
+        
+        def reset_sliders():
+            self.compact_hue_var.set(0)
+            self.compact_sat_var.set(0)
+            self.compact_val_var.set(0)
+            _compact_hsv_slider_changed_proxy()
+        
+        reset_btn = tk.Button(left_column, text="Reset", command=reset_sliders, 
+                             bg="#f44336", fg="white", font=("Arial", 8, "bold"))
+        reset_btn.pack(fill="x", pady=(10, 0))
+
+        # Right Column: Active Color Indexes
+        right_column = tk.Frame(self.active_colors_frame, bg="white")
+        right_column.pack(side="right", fill="both", expand=True, padx=5, pady=5)
+        
+        tk.Label(right_column, text="Active Color Indexes", font=("Arial", 9, "bold"), bg="white").pack(pady=(0, 5))
+
+        # Container for scrollbar and canvas
+        container = tk.Frame(right_column, bg="white")
+        container.pack(fill="both", expand=True)
+
+        # Scrollbar frame on the right
+        sb_frame = tk.Frame(container, bg="white", width=20)
+        sb_frame.pack(side="right", fill="y")
+        
+        # Scrollbar widget
+        scrollbar = tk.Scrollbar(sb_frame, orient="vertical")
+        scrollbar.pack(side="left", fill="y", expand=True)
+        
+        # Canvas on the left
+        canvas = tk.Canvas(container, bg="white", highlightthickness=0, yscrollcommand=scrollbar.set)
+        canvas.pack(side="left", fill="both", expand=True)
+        
+        scrollbar.config(command=canvas.yview)
+        
+        content_frame = tk.Frame(canvas, bg="white")
+        canvas_window = canvas.create_window((0, 0), window=content_frame, anchor="nw")
+        
+        def on_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+            canvas.itemconfig(canvas_window, width=event.width)
+        canvas.bind("<Configure>", on_configure)
+        
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+        content_frame.bind("<Configure>", on_frame_configure)
+        
+        def _on_mousewheel(event):
+             canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            
+        canvas.bind("<MouseWheel>", _on_mousewheel)
+        content_frame.bind("<MouseWheel>", _on_mousewheel)
+        
+        # Helper to toggle selection
+        def toggle_color_selection(idx, swatch_frame):
+            if idx in self.compact_selected_colors:
+                self.compact_selected_colors.remove(idx)
+                swatch_frame.config(highlightbackground="black", highlightthickness=1) # Normal
+                
+                if not self.compact_selected_colors:
+                    self.compact_base_colors = {}
+                    reset_sliders()
+            else:
+                if not self.compact_selected_colors:
+                    self.compact_base_colors = {}
+                    reset_sliders()
+                    # Base colors snapshot logic (snapshot ALL visible)
+                    for c_idx in filtered_indices:
+                        if c_idx < len(colors):
+                            self.compact_base_colors[c_idx] = colors[c_idx]
+                
+                self.compact_selected_colors.add(idx)
+                swatch_frame.config(highlightbackground="red", highlightthickness=2) # Selected
+
+        # Create swatches grid
+        columns = 8 
+        swatch_size = 22 # Reduced slightly from 25 to fit 7 items comfortably
+        padding = 2
+        
+        for i, idx in enumerate(filtered_indices):
+            if idx < len(colors):
+                r, g, b = colors[idx]
+                hex_col = f"#{r:02x}{g:02x}{b:02x}"
+                
+                # FRAME (No Text)
+                # Use highlightthickness/highlightbackground for selection border
+                is_selected = idx in self.compact_selected_colors
+                border_col = "red" if is_selected else "black"
+                border_width = 2 if is_selected else 1
+                
+                # Use a container frame for the padding/border?
+                # Actually tk.Frame has highlightthickness.
+                swatch = tk.Frame(content_frame, bg=hex_col, width=swatch_size, height=swatch_size, 
+                                relief="flat", highlightthickness=border_width, highlightbackground=border_col)
+                                
+                swatch.grid(row=i//columns, column=i%columns, padx=padding, pady=padding)
+                
+                # Store widget for later updates
+                self._compact_swatch_widgets[idx] = swatch
+                
+                # Bind Events
+                swatch.bind("<MouseWheel>", _on_mousewheel)
+                # Bind click to toggle selection
+                swatch.bind("<Button-1>", lambda e, x=idx, s=swatch: toggle_color_selection(x, s))
+                swatch.bind("<MouseWheel>", _on_mousewheel)
+
+
     def create_ui(self):
         """Create the main UI"""
         # List to store focusable widgets in order
@@ -2163,16 +3253,17 @@ class PaletteTool:
         self.master.bind("E", lambda e: self.export_all_frames())  # Shift+E
         self.master.bind("p", lambda e: self.open_live_palette_editor())
         self.master.bind("P", lambda e: self.export_pal())  # Shift+P
-        self.master.bind("r", lambda e: self.reset_to_original())
+        self.master.bind("r", lambda e: self.reset_pals())
         self.master.bind("d", lambda e: self.debug_info())
         self.master.bind("v", lambda e: self.toggle_view_mode())
         self.master.bind("o", lambda e: self.open_custom_settings())
         
         
         # Set window size and make it resizable
-        self.master.geometry("900x650")
+        self.master.title("Fashion Previewer")
+        self.master.geometry("900x650")  # Original size
+        self.master.minsize(900, 650)  # Original minimum size
         self.master.resizable(True, True)
-        self.master.minsize(900, 650)
         
         # Center the window on screen
         self._center_window()
@@ -2227,13 +3318,12 @@ class PaletteTool:
         self.zoom_combo = ttk.Combobox(top_frame, textvariable=self.zoom_var, 
                                      values=["100%", "200%", "300%", "400%", "500%", "Fit"], state="readonly", width=10)
         self.zoom_combo.pack(side="left", padx=(5, 10))
-        # Refresh assets (between Zoom dropdown and Preview)
-        self.refresh_btn = tk.Button(top_frame, text="Refresh", command=self.refresh_data)
-        try:
-            self.refresh_btn.pack(in_=top_frame, side="left", padx=(6, 6), after=self.zoom_combo)
-        except Exception:
-            self.refresh_btn.pack(side="left", padx=(6, 6))
         self.zoom_combo.bind("<<ComboboxSelected>>", lambda e: self.on_zoom_change())
+        
+        # View mode toggle button (Big Picture Mode / Small Preview Mode)
+        self.view_mode_button = tk.Button(top_frame, text="Big Picture Mode", 
+                                          command=self.toggle_view_mode, width=16)
+        self.view_mode_button.pack(side="left", padx=(0, 10))
         
         # Create a spacer frame to push preview section to the right
         spacer_frame = tk.Frame(top_frame)
@@ -2276,35 +3366,166 @@ class PaletteTool:
         
         # Scrollable canvas for image with both vertical and horizontal scrollbars
         # Create frame for scrollbars with border to ensure clipping
-        scroll_frame = tk.Frame(img_frame, relief="solid", bd=1)
-        scroll_frame.pack(fill="both", expand=True)
+        self.scroll_frame = tk.Frame(img_frame, relief="solid", bd=1)
+        self.scroll_frame.pack(fill="both", expand=True)
         
-        # Vertical scrollbar only
-        self.v_scroll = Scrollbar(scroll_frame, orient="vertical")
+        # Vertical and Horizontal scrollbars
+        self.v_scroll = Scrollbar(self.scroll_frame, orient="vertical")
         self.v_scroll.pack(side="right", fill="y")
         
-        # Canvas with vertical scrollbar only - constrained to container
-        self.canvas = Canvas(scroll_frame, 
+        self.h_scroll = Scrollbar(self.scroll_frame, orient="horizontal")
+        self.h_scroll.pack(side="bottom", fill="x")
+        
+        # Canvas with both scrollbars
+        self.canvas = Canvas(self.scroll_frame, 
                            yscrollcommand=self.v_scroll.set,
+                           xscrollcommand=self.h_scroll.set,
                            highlightthickness=0,
                            bg="white")
         self.canvas.pack(side="left", fill="both", expand=True)
         
-        # Configure scrollbar
+        # Configure scrollbars
         self.v_scroll.config(command=self.canvas.yview)
+        self.h_scroll.config(command=self.canvas.xview)
         self.canvas.bind("<Configure>", self.on_canvas_configure)
+        
+        # Initialize panning state variables for main canvas
+        self.canvas_pan_start_x = 0
+        self.canvas_pan_start_y = 0
+        self.canvas_is_panning = False
         
         # Add mouse wheel support
         def _on_mousewheel(event):
-            if event.state & 0x4:  # Check if Control is pressed
-                return  # Don't scroll if Control is pressed (let it handle zoom)
-            self.canvas.yview_scroll(-1 * (event.delta // 120), "units")
+            # Check if we are in "All Preview" mode
+            if self.preview_var.get() == "all":
+                # Scroll the canvas instead of zooming
+                self.canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+            else:
+                # Use mousewheel for Zoom (standard behavior for single/custom)
+                self._cycle_zoom(event.delta, self.zoom_var, lambda: self.zoom_combo.event_generate("<<ComboboxSelected>>"))
+            return "break"
         self.canvas.bind("<MouseWheel>", _on_mousewheel)  # Windows
-        self.canvas.bind("<Button-4>", lambda e: self.canvas.yview_scroll(-1, "units"))  # Linux
-        self.canvas.bind("<Button-5>", lambda e: self.canvas.yview_scroll(1, "units"))   # Linux
+        self.canvas.bind("<Button-4>", lambda e: _on_mousewheel(e))  # Linux
+        self.canvas.bind("<Button-5>", lambda e: _on_mousewheel(e))   # Linux
+        
+        # Add middle mouse button panning
+        def _on_canvas_pan_start(event):
+            self.canvas_is_panning = True
+            self.canvas_pan_start_x = event.x
+            self.canvas_pan_start_y = event.y
+            self.canvas.config(cursor="fleur")
+        
+        def _on_canvas_pan_drag(event):
+            if self.canvas_is_panning:
+                delta_x = event.x - self.canvas_pan_start_x
+                delta_y = event.y - self.canvas_pan_start_y
+                
+                if delta_x != 0:
+                    self.canvas.xview_scroll(-delta_x // 10, "units")
+                if delta_y != 0:
+                    self.canvas.yview_scroll(-delta_y // 10, "units")
+                    
+                self.canvas_pan_start_x = event.x
+                self.canvas_pan_start_y = event.y
+        
+        def _on_canvas_pan_release(event):
+            self.canvas_is_panning = False
+            self.canvas.config(cursor="")
+        
+        self.canvas.bind("<Button-2>", _on_canvas_pan_start)  # Middle mouse button
+        self.canvas.bind("<B2-Motion>", _on_canvas_pan_drag)
+        self.canvas.bind("<ButtonRelease-2>", _on_canvas_pan_release)
         
         self.img_id = None
         self.tk_image = None
+        
+        # Compact control bar for Small Preview Mode (hidden by default)
+        # Set maximum height to prevent overlaying main buttons
+        self.compact_control_bar = tk.Frame(img_frame, relief="raised", bd=2)
+        self.compact_control_bar_max_height = 350  # Maximum total height for compact bar
+        # Don't pack it yet - it will be shown/hidden by toggle_view_mode
+        
+        # Top row: Frame navigation and visibility controls (horizontal)
+        frame_tools_row = tk.Frame(self.compact_control_bar)
+        frame_tools_row.pack(side="top", fill="x", padx=5, pady=(5, 2))
+        
+        # Frame navigation arrows
+        tk.Button(frame_tools_row, text="◀", command=self.prev_image, width=3).pack(side="left", padx=2)
+        tk.Button(frame_tools_row, text="▶", command=self.next_image, width=3).pack(side="left", padx=2)
+        
+        # Toggle all frames visibility button
+        self.toggle_all_frames_button = tk.Button(frame_tools_row, text="👁", 
+                                                   command=self.toggle_all_frames_visibility, width=3)
+        self.toggle_all_frames_button.pack(side="left", padx=2)
+        Tooltip(self.toggle_all_frames_button, "Toggle All Frames' Visibility")
+
+        # Undo button for frame visibility
+        self.undo_frame_visibility_button = tk.Button(frame_tools_row, text="↶", command=self.undo_frame_visibility, width=3)
+        self.undo_frame_visibility_button.pack(side="left", padx=2)
+        Tooltip(self.undo_frame_visibility_button, "Undo Frame Visibility")
+        
+        # Right side buttons (reversed order: Multi, Gradient, Export)
+        # Export dropdown menu button
+        export_menu_btn = tk.Menubutton(frame_tools_row, text="Export", relief="raised", width=8)
+        export_menu_btn.pack(side="right", padx=2)
+        export_menu = tk.Menu(export_menu_btn, tearoff=0)
+        export_menu_btn.config(menu=export_menu)
+        export_menu.add_command(label="Background", command=self.export_background_compact)
+        export_menu.add_command(label="Pal", command=self.export_pal_compact)
+        
+        # Gradient button (colored)
+        tk.Button(frame_tools_row, text="Gradient", command=self.apply_gradient_compact, 
+                 width=8, bg="#9C27B0", fg="white", font=("Arial", 8, "bold")).pack(side="right", padx=2)
+        
+        # Multiselect checkbox and Selection buttons
+        self.compact_multiselect_var = tk.BooleanVar(value=False)
+        tk.Checkbutton(frame_tools_row, text="Multi", variable=self.compact_multiselect_var, 
+                      font=("Arial", 8)).pack(side="right", padx=2)
+        
+        # Select All / Clear Selection buttons
+        tk.Button(frame_tools_row, text="None", command=self._clear_selection_compact,
+                  width=4, font=("Arial", 8)).pack(side="right", padx=1)
+        tk.Button(frame_tools_row, text="All", command=self._select_all_compact,
+                  width=4, font=("Arial", 8)).pack(side="right", padx=1)
+        
+        # Resizable active colors section (bottom)
+        # Container for resize handle and active colors
+        active_colors_container = tk.Frame(self.compact_control_bar)
+        active_colors_container.pack(side="top", fill="x", expand=False, padx=5, pady=(2, 5))
+        
+        # Resize handle at the top (outside the active colors frame)
+        resize_handle = tk.Frame(active_colors_container, bg="gray", height=5, cursor="sb_v_double_arrow")
+        resize_handle.pack(side="top", fill="x")
+        resize_handle.bind("<Button-1>", self.start_resize_active_colors)
+        resize_handle.bind("<B1-Motion>", self.resize_active_colors)
+        resize_handle.bind("<ButtonRelease-1>", self.end_resize_active_colors)
+        
+        # Active colors frame (below the resize handle)
+        self.active_colors_frame = tk.Frame(active_colors_container, relief="sunken", bd=1, bg="white")
+        self.active_colors_frame.pack(side="top", fill="x", expand=False)
+        
+        # Active colors height control (constrained to prevent overlaying main buttons)
+        # Maximum height is 250px to ensure main buttons always visible
+        self.active_colors_height = 180  # Default height
+        self.active_colors_max_height = 205  # Maximum allowed height (increased from 180)
+        
+        # Set initial height
+        self.active_colors_frame.config(height=self.active_colors_height)
+        self.active_colors_frame.pack_propagate(False)  # Prevent children from resizing the frame
+        
+        # Placeholder label
+        self.palette_editor_placeholder = tk.Label(self.active_colors_frame, 
+                                                    text="Choose a pal to see active colors", 
+                                                    fg="gray", bg="white")
+        self.palette_editor_placeholder.pack(expand=True)
+        
+        # Pack the compact control bar at the bottom of img_frame (initially hidden)
+        # It will be shown/hidden by view mode toggle
+        # IMPORTANT: Pack with before= to ensure it doesn't overlay main buttons
+        self.compact_control_bar.pack(side="bottom", fill="x")
+        self.compact_control_bar.pack_forget()  # Hide it initially
+        
+        
         
         # Control panel (right side)
         control_frame = tk.Frame(content_frame)
@@ -2408,9 +3629,18 @@ class PaletteTool:
         self.fashion_canvas.pack(side="left", fill="both", expand=True)
         self.fashion_scrollbar.pack(side="right", fill="y")
 
-        # Control buttons at the bottom
-        button_frame = tk.Frame(main_frame)
-        button_frame.pack(fill="x", pady=(10, 0))
+        # Control buttons at the bottom (fixed height and minimum width to prevent squishing)
+        # Store reference for visibility management in Small Preview Mode
+        self.main_button_frame = tk.Frame(main_frame, height=60)
+        self.main_button_frame.pack(fill="x", pady=(10, 0))
+        self.main_button_frame.pack_propagate(False)  # Prevent children from resizing the frame
+        
+        # Set minimum width to prevent button squishing
+        self.main_button_frame.configure(width=850)
+        self.main_button_frame.grid_propagate(False)  # Additional protection against resizing
+        
+        # Alias for backward compatibility
+        button_frame = self.main_button_frame
 
         # Navigation buttons
         nav_frame = tk.Frame(button_frame)
@@ -2423,10 +3653,8 @@ class PaletteTool:
         self.next_btn.pack(side="left")
         
         # Other buttons
-        self.export_button = tk.Button(button_frame, text="Export Transparent PNG", command=self.export_transparent_png)
-        self.export_button.pack(side="left", padx=(0, 5))
-        # Initial button state based on export format
-        self.update_export_button_text()
+        # Export button removed as requested (moved to context menu)
+        # self.update_export_button_text()
         self.export_all_frames_button = tk.Button(button_frame, text="Export All Frames", command=self.export_all_frames)
         self.export_all_frames_button.pack_forget()  # Hidden by default
         self.export_palette_button = tk.Button(button_frame, text="Export Palette", command=self.export_pal)
@@ -2435,7 +3663,8 @@ class PaletteTool:
         self.live_edit_button.pack(side="left", padx=(0, 5))
         self.icon_editor_button = tk.Button(button_frame, text="Icon Editor", command=self._open_icon_editor)
         self.icon_editor_button.pack(side="left", padx=(0, 5))
-        tk.Button(button_frame, text="Reset to Original", command=self.reset_to_original).pack(side="left", padx=(0, 5))
+        tk.Button(button_frame, text="Reset Pals", command=self.reset_pals).pack(side="left", padx=(0, 5))
+        tk.Button(button_frame, text="Reset Frames", command=self.reset_frames).pack(side="left", padx=(0, 5))
         self.debug_info_button = tk.Button(button_frame, text="Debug Info", command=self.debug_info)
         self.debug_info_button.pack_forget()  # Hidden by default
         self.statistics_button = tk.Button(button_frame, text="Statistics", command=self.show_statistics)
@@ -2456,8 +3685,22 @@ class PaletteTool:
         self.bg_color_button.configure(bg="#FFFFFF")
         
         # Bind arrow keys for image navigation
-        self.master.bind("<Left>", lambda e: self.prev_image())
-        self.master.bind("<Right>", lambda e: self.next_image())
+        def on_arrow_key(event):
+            # Check if focus is in a text input or dropdown
+            focused = self.master.focus_get()
+            import tkinter as tk
+            from tkinter import ttk
+            if isinstance(focused, (tk.Entry, ttk.Entry, tk.Text, ttk.Combobox)):
+                return
+                
+            if event.keysym == "Left":
+                self.prev_image()
+            elif event.keysym == "Right":
+                self.next_image()
+        
+        # Use bind_all to ensure arrow keys work even when sub-widgets (like sliders) have focus
+        self.master.bind_all("<Left>", on_arrow_key)
+        self.master.bind_all("<Right>", on_arrow_key)
 
     def on_character_change(self):
         """Handle character selection change"""
@@ -2521,6 +3764,12 @@ class PaletteTool:
             self.hair_var.set("NONE")
             self.third_job_var.set("NONE")
             
+            # Reset palette selection tracking for compact editor
+            self.last_selected_palette = None
+            self.last_selected_palette_type = None
+            if hasattr(self, 'update_compact_palette_editor'):
+                self.update_compact_palette_editor()
+            
             # Clear palette layers
             self.palette_layers = []
             
@@ -2538,9 +3787,15 @@ class PaletteTool:
             self.update_zoom_combo_state()
             self.update_image_display()
             
-            # Load first image for this character
+            # Load image for this character, respecting the restored frame index
             if char_id in self.character_images and self.character_images[char_id]:
-                self.current_image_index = 0
+                # Bounds check the restored index against available images
+                max_idx = len(self.character_images[char_id]) - 1
+                if self.current_image_index > max_idx:
+                    self.current_image_index = 0
+                if self.current_image_index < 0:
+                    self.current_image_index = 0
+                
                 self.load_character_image()
                 self.update_navigation_buttons()
             
@@ -2570,16 +3825,35 @@ class PaletteTool:
                 return
                 
             # Wrap around to the last image when at the beginning
-            if self.current_image_index > 0:
-                self.current_image_index = self.current_image_index - 1
-            else:
-                self.current_image_index = len(images) - 1
+            # Navigation with hidden frame skipping
+            char_job_key = self._get_char_job_key()
+            hidden = self.hidden_frames.get(char_job_key, set())
+            
+            search_idx = self.current_image_index
+            total = len(images)
+            checked = 0
+            
+            # Use minimal loop logic
+            while checked < total:
+                # Move to prev
+                if search_idx > 0:
+                    search_idx -= 1
+                else:
+                    search_idx = total - 1
+                
+                if search_idx not in hidden:
+                    self.current_image_index = search_idx
+                    break
+                checked += 1
                 
             self.load_image_from_path(images[self.current_image_index])
             self.update_navigation_buttons()
             
             # Save current frame position
-            self._save_settings()
+            if hasattr(self, 'current_character') and self.current_character:
+                self._save_character_settings(self.current_character)
+            else:
+                self._save_settings()
     
     def prev_custom_frames(self):
         """Navigate to previous set of custom frames"""
@@ -2603,7 +3877,8 @@ class PaletteTool:
         if job_settings:
             frame_count, start_frame, end_frame = job_settings
             # Move backward by custom_frame_count frames within the range
-            self.custom_start_index -= self.custom_frame_count
+            step = max(1, self.custom_frame_count)
+            self.custom_start_index -= step
             
             # Wrap around within the selected range
             if self.custom_start_index < start_frame:
@@ -2612,7 +3887,8 @@ class PaletteTool:
                 self.custom_start_index = last_set_start
         else:
             # Move back by custom_frame_count frames
-            self.custom_start_index -= self.custom_frame_count
+            step = max(1, self.custom_frame_count)
+            self.custom_start_index -= step
             
             # Wrap around if we go below 0
             if self.custom_start_index < 0:
@@ -2623,6 +3899,9 @@ class PaletteTool:
         # Update zoom combo state after custom frame navigation
         self.update_zoom_combo_state()
         self.update_image_display()
+        
+        # Save character settings to remember the new start index
+        self._save_character_settings(char_id)
 
     def next_image(self):
         """Navigate to next image"""
@@ -2650,11 +3929,24 @@ class PaletteTool:
                 return
                 
             # Wrap around to the first image when at the end
-            if self.current_image_index < len(images) - 1:
-                self.current_image_index = self.current_image_index + 1
-            else:
-                self.current_image_index = 0
+            # Navigation with hidden frame skipping
+            char_job_key = self._get_char_job_key()
+            hidden = self.hidden_frames.get(char_job_key, set())
+            
+            search_idx = self.current_image_index
+            total = len(images)
+            checked = 0
+            
+            # Use minimal loop logic
+            while checked < total:
+                # Move to next
+                search_idx = (search_idx + 1) % total
                 
+                if search_idx not in hidden:
+                    self.current_image_index = search_idx
+                    break
+                checked += 1
+
             self.load_image_from_path(images[self.current_image_index])
             self.update_navigation_buttons()
             # Track frame navigation
@@ -2662,7 +3954,10 @@ class PaletteTool:
             self._save_statistics()
             
             # Save current frame position
-            self._save_settings()
+            if hasattr(self, 'current_character') and self.current_character:
+                self._save_character_settings(self.current_character)
+            else:
+                self._save_settings()
     
     def next_custom_frames(self):
         """Navigate to next set of custom frames"""
@@ -2686,14 +3981,16 @@ class PaletteTool:
         if job_settings:
             frame_count, start_frame, end_frame = job_settings
             # Move forward by custom_frame_count frames within the range
-            self.custom_start_index += self.custom_frame_count
+            step = max(1, self.custom_frame_count)
+            self.custom_start_index += step
             
             # Wrap around within the selected range
             if self.custom_start_index > end_frame:
                 self.custom_start_index = start_frame
         else:
             # Move forward by custom_frame_count frames
-            self.custom_start_index += self.custom_frame_count
+            step = max(1, self.custom_frame_count)
+            self.custom_start_index += step
             
             # Wrap around if we exceed the total number of frames
             if self.custom_start_index >= max_frames:
@@ -2702,6 +3999,9 @@ class PaletteTool:
         # Update zoom combo state after custom frame navigation
         self.update_zoom_combo_state()
         self.update_image_display()
+        
+        # Save character settings to remember the new start index
+        self._save_character_settings(char_id)
 
     def update_navigation_buttons(self):
         """Update the state of image navigation buttons"""
@@ -2797,6 +4097,10 @@ class PaletteTool:
                         break
         
         if char_id and char_id in CHARACTER_MAPPING:
+            # Save current settings before switching to a new job/character
+            if hasattr(self, 'current_character') and self.current_character:
+                self._save_character_settings(self.current_character)
+                
             self.current_character = char_id
             self.current_job = job_name
             
@@ -2815,6 +4119,12 @@ class PaletteTool:
             self.hair_var.set("NONE")
             self.third_job_var.set("NONE")
             
+            # Reset palette selection tracking for compact editor
+            self.last_selected_palette = None
+            self.last_selected_palette_type = None
+            if hasattr(self, 'update_compact_palette_editor'):
+                self.update_compact_palette_editor()
+            
             # Clear palette layers
             self.palette_layers = []
             
@@ -2832,9 +4142,15 @@ class PaletteTool:
             self.update_zoom_combo_state()
             self.update_image_display()
             
-            # Load first image for this character
+            # Load image for this character, respecting the restored frame index
             if char_id in self.character_images and self.character_images[char_id]:
-                self.current_image_index = 0
+                # Bounds check the restored index against available images
+                max_idx = len(self.character_images[char_id]) - 1
+                if self.current_image_index > max_idx:
+                    self.current_image_index = 0
+                if self.current_image_index < 0:
+                    self.current_image_index = 0
+                
                 self.load_character_image()
             
             # Update navigation buttons after job change (always, not just when loading image)
@@ -2891,8 +4207,11 @@ class PaletteTool:
                 tk.Radiobutton(self.third_job_frame, text=palette_name, variable=self.third_job_var,
                               value=palette_path, command=self.on_third_job_change).pack(anchor="w", padx=2, pady=0)
             
-            # Set default to first palette if available
-            if palettes:
+            # Restore saved selection if available
+            saved_pal = self.loaded_palettes.get('third_job')
+            if saved_pal and saved_pal in palettes:
+                self.third_job_var.set(saved_pal)
+            elif palettes:
                 self.third_job_var.set(palettes[0])
             else:
                 self.third_job_var.set("NONE")
@@ -3129,8 +4448,8 @@ class PaletteTool:
                 "fashion_2": "Opera Cape",
                 "fashion_3": "Frock Coat",
                 "fashion_4": "Dress Pants",
-                "fashion_5": "Full Suit",
-                "fashion_6": "Formal Shoes"
+                "fashion_5": "Formal Shoes",
+                "fashion_6": "Unknown"
             },
             "025": {  # chr025 (Paula 1st Job)
                 "fashion_1": "Stadium Jacket",
@@ -3213,8 +4532,9 @@ class PaletteTool:
                 rb.pack(anchor="w", padx=3, pady=1)
                 self.register_focusable(rb, f"hair_{palette_path}")
         
-        # Set default to NONE
-        self.hair_var.set("NONE")
+        # Restore saved selection if available
+        saved_pal = self.loaded_palettes.get('hair', "NONE")
+        self.hair_var.set(saved_pal)
 
     def update_fashion_section(self):
         """Update the Fashion section"""
@@ -3256,9 +4576,9 @@ class PaletteTool:
                     elif palette_type == "fashion_4":
                         return (4, fashion_num)
                     elif palette_type == "fashion_6":
-                        return (5, fashion_num)
+                        return (6, fashion_num)  # Unknown (was Full Suit/Formal Shoes mixup)
                     elif palette_type == "fashion_5":
-                        return (6, fashion_num)  # Full Suit last
+                        return (5, fashion_num)  # Formal Shoes (was Full Suit range)
                     else:
                         return (99, fashion_num)  # Unknown types go last
                 else:
@@ -3304,7 +4624,7 @@ class PaletteTool:
                     
                     # Add "NONE" option for each fashion type
                     rb = tk.Radiobutton(type_frame, text="NONE", variable=var,
-                                      value="NONE", command=self.on_fashion_change)
+                                      value="NONE", command=lambda ft=fashion_type: self.on_fashion_change(ft))
                     rb.configure(pady=2)
                     rb.pack(anchor="w", padx=(10, 0), pady=1)
                     
@@ -3321,32 +4641,77 @@ class PaletteTool:
                         display_name = f"{palette_name} (C)" if is_custom else palette_name
                         
                         rb = tk.Radiobutton(type_frame, text=display_name, variable=var,
-                                          value=palette_path, command=self.on_fashion_change)
+                                          value=palette_path, command=lambda ft=fashion_type: self.on_fashion_change(ft))
                         rb.configure(pady=2)
                         rb.pack(anchor="w", padx=(10, 0), pady=0)
                         self.register_focusable(rb, f"fashion_{fashion_type}_{palette_path}")
                     
-                    # Set default to NONE for all characters
-                    var.set("NONE")
+                    # Restore saved selection if available
+                    saved_pal = self.loaded_palettes.get('fashion', {}).get(fashion_type, "NONE")
+                    var.set(saved_pal)
 
     def on_third_job_change(self):
         """Handle 3rd job base fashion selection change"""
+        self._deselect_frame(refresh=False)
         # Safety check: if current character is Paula, don't process 3rd job changes
         if hasattr(self, 'current_character') and self.current_character in ["chr025", "chr026", "chr027"]:
             return
         
+        if hasattr(self, 'current_character') and self.current_character:
+            self._save_character_settings(self.current_character)
+            
         self.load_palettes()
+        
+        # Track palette selection for compact editor (after loading palettes)
+        if hasattr(self, 'on_palette_selection_change'):
+            selected_pal = self.third_job_var.get()
+            if selected_pal != "NONE":
+                self.on_palette_selection_change('third_job', selected_pal)
+                
         self._debounced_display_update()
 
     def on_hair_change(self):
         """Handle hair selection change"""
+        self._deselect_frame(refresh=False)
         # No warning on selection - warnings only appear when trying to edit
+        
+        if hasattr(self, 'current_character') and self.current_character:
+            self._save_character_settings(self.current_character)
+            
         self.load_palettes()
+        
+        # Track palette selection for compact editor (after loading palettes)
+        if hasattr(self, 'on_palette_selection_change'):
+            selected_pal = self.hair_var.get()
+            if selected_pal != "NONE":
+                self.on_palette_selection_change('hair', selected_pal)
+                
         self._debounced_display_update()
 
-    def on_fashion_change(self):
+    def on_fashion_change(self, changed_fashion_type=None):
         """Handle fashion selection change"""
+        self._deselect_frame(refresh=False)
+        
+        if hasattr(self, 'current_character') and self.current_character:
+            self._save_character_settings(self.current_character)
+            
         self.load_palettes()
+        
+        # Track palette selection for compact editor (after loading palettes)
+        if hasattr(self, 'on_palette_selection_change'):
+            if changed_fashion_type and changed_fashion_type in self.fashion_vars:
+                # Update specific fashion type that changed
+                selected_pal = self.fashion_vars[changed_fashion_type].get()
+                if selected_pal != "NONE":
+                    self.on_palette_selection_change(changed_fashion_type, selected_pal)
+            else:
+                # Fallback: Get the last selected fashion palette
+                for fashion_type, var in self.fashion_vars.items():
+                    selected_pal = var.get()
+                    if selected_pal != "NONE":
+                        self.on_palette_selection_change(fashion_type, selected_pal)
+                        break  # Just track the first one changed
+        
         self._debounced_display_update()
 
     def load_palettes(self):
@@ -3517,6 +4882,10 @@ class PaletteTool:
 
     def on_preview_mode_change(self):
         """Handle preview mode change (single vs all frames)"""
+        # Sync view with selection if available
+        if self.preview_var.get() == "single" and hasattr(self, 'selected_frame') and self.selected_frame is not None:
+            self.current_image_index = self.selected_frame
+            
         # Track mode changes for intelligent custom defaults
         new_mode = self.preview_var.get()
         old_mode = getattr(self, '_current_preview_mode', 'single')
@@ -3565,12 +4934,20 @@ class PaletteTool:
         # Update navigation buttons after preview mode change
         self.update_navigation_buttons()
         
+        # Return focus to canvas to ensure keyboard shortcuts function
+        if hasattr(self, 'canvas') and self.canvas.winfo_exists():
+            self.canvas.focus_set()
+        
         # Add a delayed update to ensure zoom state is set correctly after UI updates
         self.master.after(100, self.update_zoom_combo_state)
     
     def get_current_displayed_frame(self):
         """Get the currently displayed frame index (0-based)"""
         if hasattr(self, 'current_character') and self.current_character:
+            # Check explicitly set export frame
+            if hasattr(self, 'export_frames') and self.current_character in self.export_frames:
+                return self.export_frames[self.current_character]
+                
             if self.preview_var.get() == "single":
                 return self.current_image_index
             elif self.preview_var.get() == "all":
@@ -3586,6 +4963,7 @@ class PaletteTool:
 
     def open_custom_settings(self):
         """Open custom preview settings dialog"""
+        self._deselect_frame()
         if not hasattr(self, 'current_character') or not self.current_character:
             messagebox.showinfo("Notice", "Please select a character first.")
             return
@@ -3699,30 +5077,11 @@ class PaletteTool:
             frame_count, start_frame, end_frame = job_settings
             # Validate stored settings
             
-            # Calculate visually distributed frames
-            if frame_count > 1:
-                # Calculate the step size between frames for visual distribution
-                total_range = end_frame - start_frame + 1
-                if total_range >= frame_count:
-                    # Use floating-point division for more accurate spacing
-                    step = total_range / (frame_count - 1)
-                    # Generate frame indices
-                    frames = []
-                    for i in range(frame_count):
-                        frame_idx = int(start_frame + (i * step))
-                        # Ensure we don't exceed the end frame
-                        frame_idx = min(frame_idx, end_frame)
-                        frames.append(frame_idx)
-                    # Ensure the last frame is included if we have more than one frame
-                    if frames and frames[-1] != end_frame and frame_count > 1:
-                        frames[-1] = end_frame
-                    return frames
-                else:
-                    # If range is smaller than frame count, return all frames in range
-                    return list(range(start_frame, end_frame + 1))
-            else:
-                # For single frame, just return the start frame
-                return [start_frame]
+            # Calculate frame indices within the selected range
+            # Note: Removed distributed logic to ensure navigation works consistently with a sliding window approach
+            if False: # Disabled distributed logic
+                pass
+
             
             if start_frame >= max_frames:
                 start_frame = 0
@@ -3844,6 +5203,10 @@ class PaletteTool:
 
     def update_image_display(self):
         """Update the image display with current palette"""
+        # Skip display updates during initialization to prevent white flashing
+        if getattr(self, '_is_initializing', False):
+            return
+        
         # Check if canvas exists and is valid
         if not hasattr(self, 'canvas') or not self.canvas.winfo_exists():
             return
@@ -3868,6 +5231,24 @@ class PaletteTool:
         # Update zoom combo state before displaying (especially important for custom mode)
         self.update_zoom_combo_state()
         
+        # Ensure current frame is not hidden when entering Single Mode
+        if preview_mode == "single":
+            char_job_key = self._get_char_job_key()
+            hidden = self.hidden_frames.get(char_job_key, set())
+            if self.current_image_index in hidden:
+                images = self.character_images.get(self.current_character, [])
+                total = len(images)
+                if total > 1:
+                    next_idx = (self.current_image_index + 1) % total
+                    checked = 0
+                    while next_idx in hidden and checked < total:
+                        next_idx = (next_idx + 1) % total
+                        checked += 1
+                    if next_idx != self.current_image_index:
+                        self.current_image_index = next_idx
+                        self.load_image_from_path(images[self.current_image_index])
+                        return
+        
         if preview_mode == "single":
             self.canvas.delete("all")
             self.update_single_frame_display()
@@ -3882,6 +5263,15 @@ class PaletteTool:
         if not hasattr(self, 'canvas') or not self.canvas.winfo_exists():
             return
             
+        # Double check if current frame is hidden
+        char_job_key = self._get_char_job_key()
+        hidden = self.hidden_frames.get(char_job_key, set())
+        if self.current_image_index in hidden:
+             # This should have been handled by update_image_display, but as a fallback:
+             self.canvas.delete("all")
+             self.canvas.create_text(200, 200, text="[Hidden Frame]", fill="gray")
+             return
+
         if not self.original_image:
             self.canvas.delete("all")
             return
@@ -4001,6 +5391,22 @@ class PaletteTool:
         
         self.img_id = self.canvas.create_image(img_x, img_y, anchor=anchor, image=self.tk_image)
         
+        
+        # Define event handlers that prevent propagation
+        def on_img_click(e, idx):
+            # Use the new on_frame_click method for Ctrl+Click support
+            if hasattr(self, 'on_frame_click'):
+                self.on_frame_click(e, idx)
+            else:
+                # Fallback to old behavior
+                self._select_frame(idx, e)
+            self._identify_layer_from_click(idx, e)
+            return "break"
+        
+        def on_img_right_click(e, idx):
+            self._show_frame_context_menu(e, idx)
+            return "break"
+        
         # Add frame number text below the image
         if self.show_frame_labels:
             frame_number = self.current_image_index + 1
@@ -4013,8 +5419,39 @@ class PaletteTool:
                 text_x = img_x  # Use same x as image (centered)
                 text_y = display_h + 5
             
-            self.canvas.create_text(text_x, text_y, text=str(frame_number), 
+            text_id = self.canvas.create_text(text_x, text_y, text=str(frame_number), 
                                   anchor="n", font=("Arial", 8))
+            self.canvas.tag_bind(text_id, "<Button-1>", lambda e, idx=self.current_image_index: on_img_click(e, idx))
+            self.canvas.tag_bind(text_id, "<Button-3>", lambda e, idx=self.current_image_index: on_img_right_click(e, idx))
+        
+        # Draw selection highlight if this frame is selected
+        if self.selected_frame == self.current_image_index:
+            # Calculate bounds
+            if anchor == "center":
+                x1 = img_x - display_w // 2
+                y1 = img_y - display_h // 2
+            else: # anchor == "n"
+                x1 = img_x - display_w // 2
+                y1 = img_y
+            x2 = x1 + display_w
+            y2 = y1 + display_h
+            
+            # Draw red selection box with slight padding
+            self.canvas.create_rectangle(x1-2, y1-2, x2+2, y2+2, outline="red", width=2, tags="selection")
+
+        # Bind events to the image
+        self.canvas.tag_bind(self.img_id, "<Button-1>", lambda e, idx=self.current_image_index: on_img_click(e, idx))
+        self.canvas.tag_bind(self.img_id, "<Button-3>", lambda e, idx=self.current_image_index: on_img_right_click(e, idx))
+        
+        # Bind background click to deselect only if clicking on empty canvas
+        def on_canvas_click(e):
+            # Check if we clicked on an item
+            item = self.canvas.find_closest(e.x, e.y)
+            if not item or self.canvas.type(item[0]) == "":
+                self._deselect_frame()
+        
+        self.canvas.bind("<Button-1>", on_canvas_click)
+        
         # Force canvas update
         self.canvas.update()
         self.canvas.update_idletasks()
@@ -4073,7 +5510,13 @@ class PaletteTool:
         max_width = 0
         max_height = 0
         
+        # Get hidden frames
+        char_job_key = self._get_char_job_key()
+        hidden_frames = self.hidden_frames.get(char_job_key, set())
+        
         for i, image_path in enumerate(images):
+            if i in hidden_frames:
+                continue
             try:
                 # Load and process image similar to single frame
                 img = Image.open(image_path)
@@ -4226,7 +5669,7 @@ class PaletteTool:
                     if zoom_scale != 1.0:
                         rgb_img = rgb_img.resize((new_width, new_height), Image.Resampling.NEAREST)
                 
-                processed_images.append((rgb_img, new_width, new_height))
+                processed_images.append((rgb_img, new_width, new_height, i))
                 max_width = max(max_width, new_width)
                 max_height = max(max_height, new_height)
                 
@@ -4242,7 +5685,7 @@ class PaletteTool:
             rows = []
             current_y = padding
             
-            for i, (rgb_img, img_width, img_height) in enumerate(processed_images):
+            for i, (rgb_img, img_width, img_height, original_idx) in enumerate(processed_images):
                 # Center each image horizontally
                 x_pos = (canvas_width - img_width) // 2
                 rows.append((i, x_pos, current_y, img_width, img_height))
@@ -4260,7 +5703,7 @@ class PaletteTool:
             current_y = padding
             available_width = canvas_width - (padding * 2)
             
-            for i, (rgb_img, img_width, img_height) in enumerate(processed_images):
+            for i, (rgb_img, img_width, img_height, original_idx) in enumerate(processed_images):
                 # Check if this image fits in the current row
                 needed_width = img_width
                 if current_row:  # Add spacing if not first in row
@@ -4316,31 +5759,70 @@ class PaletteTool:
             
             rows = positioned_items
         
-        # Create PhotoImage objects and place them
         for item in rows:
             if zoom_level == "Fit":
                 img_index, x_pos, y_pos, img_width, img_height = item
             else:
                 img_index, x_pos, y_pos, img_width, img_height = item
             
-            rgb_img, _, _ = processed_images[img_index]
+            # Unpack with original index
+            rgb_img, _, _, original_idx = processed_images[img_index]
             
             # Create PhotoImage and store reference
             photo_img = ImageTk.PhotoImage(rgb_img)
             # Create the image
-            self.canvas.create_image(x_pos, y_pos, anchor="nw", image=photo_img)
+            img_id = self.canvas.create_image(x_pos, y_pos, anchor="nw", image=photo_img, tags=("image", f"frame_{original_idx}"))
+            
+            # Draw selection box if selected (Only in Big Picture Mode)
+            is_small_preview = getattr(self, 'view_mode', '') == "small_preview"
+            if (original_idx in self.selected_frames or original_idx == self.selected_frame) and not is_small_preview:
+                self.canvas.create_rectangle(x_pos-2, y_pos-2, x_pos+img_width+2, y_pos+img_height+2, 
+                                           outline="red", width=2, tags="selection")
             
             # Add frame number text below the image
-            frame_number = img_index + 1  # Add 1 since frame numbers are 0-based internally
-            text_y = y_pos + img_height + 5  # Position text 5 pixels below the image
-            # Add frame number
-            self.canvas.create_text(x_pos + img_width // 2, text_y, text=str(frame_number), 
+            frame_number = original_idx + 1  # Use original index for correct frame number
+            text_y = y_pos + img_height + 5
+            text_id = self.canvas.create_text(x_pos + img_width // 2, text_y, text=str(frame_number), 
                                   anchor="n", font=("Arial", 8))
             
+            # Bind events - use wrappers to prevent propagation
+            def on_click(e, idx):
+                # Use the new on_frame_click method for Ctrl+Click support
+                should_continue = True
+                if hasattr(self, 'on_frame_click'):
+                    # If on_frame_click returns False, we stop processing (don't identify layer)
+                    result = self.on_frame_click(e, idx)
+                    if result is False:
+                        should_continue = False
+                else:
+                    # Fallback to old behavior
+                    self._select_frame(idx, e)
+                
+                if should_continue:
+                    self._identify_layer_from_click(idx, e)
+                return "break"
+            
+            def on_right_click(e, idx):
+                self._show_frame_context_menu(e, idx)
+                return "break"
+            
+            self.canvas.tag_bind(img_id, "<Button-1>", lambda e, idx=original_idx: on_click(e, idx))
+            self.canvas.tag_bind(img_id, "<Button-3>", lambda e, idx=original_idx: on_right_click(e, idx))
+            self.canvas.tag_bind(text_id, "<Button-1>", lambda e, idx=original_idx: on_click(e, idx))
+            self.canvas.tag_bind(text_id, "<Button-3>", lambda e, idx=original_idx: on_right_click(e, idx))
+
             # Store reference to prevent garbage collection
             if not hasattr(self, 'all_frame_images'):
                 self.all_frame_images = []
             self.all_frame_images.append(photo_img)
+        
+        # Bind background click to deselect only if clicking on empty canvas
+        def on_canvas_click(e):
+            item = self.canvas.find_closest(e.x, e.y)
+            if not item or self.canvas.type(item[0]) == "":
+                self._deselect_frame()
+        
+        self.canvas.bind("<Button-1>", on_canvas_click)
         
         # Set vertical scroll region only - width matches canvas width
         self.canvas.config(scrollregion=(0, 0, canvas_width, total_height))
@@ -4384,23 +5866,34 @@ class PaletteTool:
         if self.custom_start_index < 0:
             self.custom_start_index = 0
             
-        # Get frames to display based on custom_start_index
-        frames_to_show = min(frame_count, len(all_images) - self.custom_start_index)
-        if frames_to_show <= 0:
-            # If no frames to show, reset to beginning
-            self.custom_start_index = 0
-            frames_to_show = min(frame_count, len(all_images))
+        # Get hidden frames
+        char_job_key = self._get_char_job_key()
+        hidden = self.hidden_frames.get(char_job_key, set())
+        print(f"DEBUG: Custom View - Hidden Frames for {char_job_key}: {hidden}")
+
+        # Collect visible indices starting from custom_start_index
+        visible_indices = []
+        idx = self.custom_start_index
+        
+        # Limit to available images
+        total_images = len(all_images)
+        
+        # Try to fill the requested frame count
+        while len(visible_indices) < frame_count and idx < total_images:
+            if idx not in hidden:
+                visible_indices.append(idx)
+            idx += 1
             
-        frame_indices = range(self.custom_start_index, self.custom_start_index + frames_to_show)
+        print(f"DEBUG: Custom View - Showing Indices: {visible_indices}")
         
         # Get the selected frames
-        custom_images = [all_images[i] for i in frame_indices]
+        custom_images = [all_images[i] for i in visible_indices]
         if not custom_images:
             self.canvas.delete("all")
             return
             
         # Store the frame indices for reference
-        self.custom_frames = list(frame_indices)
+        self.custom_frames = list(visible_indices)
         
         # Clear canvas and previous image references
         self.canvas.delete("all")
@@ -4447,6 +5940,8 @@ class PaletteTool:
         max_height = 0
         
         for i, image_path in enumerate(custom_images):
+            original_idx = visible_indices[i]
+            # No need for second hidden check as visible_indices is already filtered
             try:
                 # Load and process image similar to single frame
                 img = Image.open(image_path)
@@ -4600,7 +6095,7 @@ class PaletteTool:
                     if zoom_scale != 1.0:
                         rgb_img = rgb_img.resize((new_width, new_height), Image.Resampling.NEAREST)
                 
-                processed_images.append((rgb_img, new_width, new_height))
+                processed_images.append((rgb_img, new_width, new_height, original_idx))
                 max_width = max(max_width, new_width)
                 max_height = max(max_height, new_height)
                 
@@ -4616,7 +6111,7 @@ class PaletteTool:
             rows = []
             current_y = padding
             
-            for i, (rgb_img, img_width, img_height) in enumerate(processed_images):
+            for i, (rgb_img, img_width, img_height, original_idx) in enumerate(processed_images):
                 # Center each image horizontally
                 x_pos = (canvas_width - img_width) // 2
                 rows.append((i, x_pos, current_y, img_width, img_height))
@@ -4635,7 +6130,7 @@ class PaletteTool:
             current_y = padding
             available_width = canvas_width - (padding * 2)
             
-            for i, (rgb_img, img_width, img_height) in enumerate(processed_images):
+            for i, (rgb_img, img_width, img_height, original_idx) in enumerate(processed_images):
                 # Check if this image fits in the current row
                 needed_width = img_width
                 if current_row:  # Add spacing if not first in row
@@ -4704,23 +6199,59 @@ class PaletteTool:
             else:
                 img_index, x_pos, y_pos, img_width, img_height = item
             
-            rgb_img, _, _ = processed_images[img_index]
+            # Unpack with original index
+            rgb_img, _, _, original_idx = processed_images[img_index]
             
             # Create PhotoImage and store reference
             photo_img = ImageTk.PhotoImage(rgb_img)
             # Create the image
-            self.canvas.create_image(x_pos, y_pos, anchor="nw", image=photo_img)
+            img_id = self.canvas.create_image(x_pos, y_pos, anchor="nw", image=photo_img, tags=("image", f"frame_{original_idx}"))
+
+            # Draw selection box if selected (Only in Big Picture Mode)
+            is_small_preview = getattr(self, 'view_mode', '') == "small_preview"
+            if (original_idx in self.selected_frames or original_idx == self.selected_frame) and not is_small_preview:
+                self.canvas.create_rectangle(x_pos-2, y_pos-2, x_pos+img_width+2, y_pos+img_height+2, 
+                                           outline="red", width=2, tags="selection")
             
             # Add frame number text below the image if enabled
             if self.show_frame_labels:
-                frame_number = self.custom_frames[img_index] + 1  # Add 1 since frame numbers are 0-based internally
+                frame_number = original_idx + 1  # Use original index
                 text_y = y_pos + img_height + 5  # Position text 5 pixels below the image
                 # Add frame number
-                self.canvas.create_text(x_pos + img_width // 2, text_y, text=str(frame_number), 
+                text_id = self.canvas.create_text(x_pos + img_width // 2, text_y, text=str(frame_number), 
                                       anchor="n", font=("Arial", 8))
+            
+            # Bind events - use wrappers to prevent propagation
+            def on_click(e, idx):
+                # Use the new on_frame_click method for Ctrl+Click support
+                if hasattr(self, 'on_frame_click'):
+                    self.on_frame_click(e, idx)
+                else:
+                    # Fallback to old behavior
+                    self._select_frame(idx, e)
+                return "break"
+            
+            def on_right_click(e, idx):
+                self._show_frame_context_menu(e, idx)
+                return "break"
+            
+            self.canvas.tag_bind(img_id, "<Button-1>", lambda e, idx=original_idx: on_click(e, idx))
+            self.canvas.tag_bind(img_id, "<Button-3>", lambda e, idx=original_idx: on_right_click(e, idx))
+            
+            if self.show_frame_labels:
+                self.canvas.tag_bind(text_id, "<Button-1>", lambda e, idx=original_idx: on_click(e, idx))
+                self.canvas.tag_bind(text_id, "<Button-3>", lambda e, idx=original_idx: on_right_click(e, idx))
             
             # Store reference to prevent garbage collection
             self.custom_frame_images.append(photo_img)
+        
+        # Bind background click to deselect only if clicking on empty canvas
+        def on_canvas_click(e):
+            item = self.canvas.find_closest(e.x, e.y)
+            if not item or self.canvas.type(item[0]) == "":
+                self._deselect_frame()
+        
+        self.canvas.bind("<Button-1>", on_canvas_click)
         
         # Set vertical scroll region only - width matches canvas width
         self.canvas.config(scrollregion=(0, 0, canvas_width, total_height))
@@ -4912,6 +6443,7 @@ class PaletteTool:
                               os.environ.get("FASHION_PREVIEWER_ROOT", 
                                            os.path.dirname(script_dir)))
             possible_paths = [
+                filename,  # Treat input as potential full path first
                 os.path.join("nonremovable_assets", "vanilla_pals", "fashion", filename),
                 os.path.join(root_dir, "exports", "custom_pals", "fashion", filename),
                 os.path.join(root_dir, "exports", "custom_fashion_pals", filename)  # backwards compatibility
@@ -4919,7 +6451,7 @@ class PaletteTool:
             
             palette_data = None
             for path in possible_paths:
-                if os.path.exists(path):
+                if os.path.exists(path) and os.path.isfile(path):
                     with open(path, "rb") as f:
                         data = f.read()
                     if len(data) == PALETTE_SIZE * 3:
@@ -5661,6 +7193,13 @@ class PaletteTool:
         bg_img.paste(fg_img, (0, 0), mask_img)
         return bg_img
         
+    def export_background(self):
+        """Export based on current settings (BMP or PNG)"""
+        if self.use_bmp_export:
+            self.export_background_bmp()
+        else:
+            self.export_transparent_png()
+
     def export_background_bmp(self, frame=None, force_portrait=False):
         """Export current image as BMP with background color
         
@@ -6359,6 +7898,7 @@ class PaletteTool:
     def open_live_palette_editor(self):
         """Edit ONE active palette layer with an embedded RGB/HEX picker.
         Added: Multi-select mode + Shift-click range selection."""
+        self._deselect_frame()
         # Store current UI mode before opening editor
         current_ui_mode = getattr(self, 'live_pal_ui_mode', 'Simple')
         
@@ -6380,12 +7920,22 @@ class PaletteTool:
             messagebox.showinfo("Live Edit Palette", "No active palette layer. Select Hair or a Fashion item first.")
             return
 
-        # Prefer an active fashion layer if present
+        # Prefer the last selected palette if it's active
         default_idx = 0
-        for i, ly in enumerate(active_layers):
-            if str(getattr(ly, "palette_type", "")).startswith("fashion_"):
-                default_idx = i
-                break
+        last_pal = getattr(self, 'last_selected_palette', None)
+        if last_pal:
+            import os
+            last_pal_base = os.path.basename(last_pal)
+            for i, ly in enumerate(active_layers):
+                if ly.name == last_pal_base:
+                    default_idx = i
+                    break
+        else:
+            # Fallback: Prefer an active fashion layer
+            for i, ly in enumerate(active_layers):
+                if str(getattr(ly, "palette_type", "")).startswith("fashion_"):
+                    default_idx = i
+                    break
 
         # Build display names
         names = []
@@ -6408,8 +7958,22 @@ class PaletteTool:
         # Warn up front if default target is Hair or 3rd Job Base
         try:
             default_layer = active_layers[default_idx]
+            # Load UI mode from settings if not already set
+            if not hasattr(self, 'live_pal_ui_mode'):
+                try:
+                    import json
+                    import os
+                    settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "settings.json")
+                    if os.path.exists(settings_path):
+                        with open(settings_path, 'r', encoding='utf-8') as f:
+                            settings = json.load(f)
+                            self.live_pal_ui_mode = settings.get('live_pal_editor_ui_mode', 'Simple')
+                    else:
+                        self.live_pal_ui_mode = 'Simple'
+                except:
+                    self.live_pal_ui_mode = 'Simple'
             # Store UI mode before warning dialog
-            current_ui_mode = getattr(self, 'live_pal_ui_mode', 'Simple')
+            current_ui_mode = self.live_pal_ui_mode
             if not self._warn_if_nonimpact(getattr(default_layer, "palette_type", "")):
                 # If user clicked "No", bring existing live editor to front if it exists
                 if hasattr(self, '_live_editor_window') and self._live_editor_window and self._live_editor_window.winfo_exists():
@@ -6465,7 +8029,7 @@ class PaletteTool:
 
         self._live_editor_window = tk.Toplevel(self.master)
         self._live_editor_window.title("Live Edit Palette")
-        self._live_editor_window.geometry("810x450")  # 30px wider window
+        self._live_editor_window.geometry("810x460")  # 30px wider window, 10px taller
         self._live_editor_window.resizable(False, False)
         
         # Restore the UI mode that was stored earlier
@@ -6516,11 +8080,18 @@ class PaletteTool:
         tk.Button(top, text="Clear Sel", command=self._live_clear_selection).pack(side="left")
         self._sel_count_lbl = tk.Label(top, text="(0 selected)"); self._sel_count_lbl.pack(side="left", padx=(6,0))
         tk.Button(top, text="Save Item .pal", command=self._live_save_item_pal).pack(side="left", padx=(12,8))
-        tk.Button(top, text="Reset to Original", command=self._live_reset_to_original).pack(side="right")
+        tk.Button(top, text="Reset to Original", command=self._live_reset_to_original).pack(side="right", padx=(0, 5))
+        # Divider
+        tk.Frame(top, width=2, bg="gray", relief="sunken").pack(side="right", fill="y", padx=5)
+        # Gears button for settings
+        tk.Button(top, text="⚙", width=3, command=self._open_live_pal_settings_menu).pack(side="right")
 
         # Body - use grid for better control over proportions
         body = tk.Frame(self._live_editor_window); body.pack(fill="both", expand=True, padx=1, pady=0)
         body.grid_rowconfigure(0, weight=1)  # Allow row to expand
+        body.grid_columnconfigure(0, weight=0)  # Left column (grid) - fixed width
+        body.grid_columnconfigure(1, weight=1)  # Right column (panel) - expandable
+        
         
         # Ensure UI mode is preserved right before building UI
         self.live_pal_ui_mode = current_ui_mode
@@ -6598,6 +8169,9 @@ class PaletteTool:
             self._is_dragging = False
             try:
                 self._hsv_debounced_change()
+                # Track statistics when slider is released
+                if hasattr(self, 'statistics') and hasattr(self, '_live_selected_index'):
+                    self.statistics.track_index_modification(self._live_selected_index)
             except Exception:
                 pass
         for w in (self._picker_h, self._picker_s, self._picker_v):
@@ -6756,6 +8330,10 @@ class PaletteTool:
             # Update simple mode preview if in simple mode
             if self.live_pal_ui_mode == "Simple" and hasattr(self, '_update_simple_preview'):
                 self._update_simple_preview()
+            
+            # Track statistics: saved color applied
+            if hasattr(self, 'statistics'):
+                self.statistics.track_index_modification(idx)
         def _handle_click(event, slot):
             """Handle click based on current mode"""
             if (event.num == 3) == self.use_right_click:  # Right click mode matches right click or vice versa
@@ -7045,12 +8623,36 @@ class PaletteTool:
         # Bind resize event to update canvas dimensions for click handling
         self._simple_preview_canvas.bind("<Configure>", self._on_simple_canvas_configure)
         
-        # Bind click event to preview for color selection
+        # Initialize panning state variables
+        self._simple_pan_start_x = 0
+        self._simple_pan_start_y = 0
+        self._simple_pan_offset_x = 0
+        self._simple_pan_offset_y = 0
+        self._simple_is_panning = False
+        self._simple_click_moved = False
+        
+        # Bind click event to preview for color selection and panning
         self._simple_preview_canvas.bind("<Button-1>", self._on_simple_preview_click)
+        self._simple_preview_canvas.bind("<B1-Motion>", self._on_simple_preview_drag)
+        self._simple_preview_canvas.bind("<ButtonRelease-1>", self._on_simple_preview_release)
+        
+        # Add middle mouse button panning (simpler version using same handlers)
+        self._simple_preview_canvas.bind("<Button-2>", self._on_simple_preview_middle_click)
+        self._simple_preview_canvas.bind("<B2-Motion>", self._on_simple_preview_drag)
+        self._simple_preview_canvas.bind("<ButtonRelease-2>", self._on_simple_preview_release)
         
         # Change cursor to indicate clickability
         self._simple_preview_canvas.bind("<Enter>", lambda e: self._simple_preview_canvas.configure(cursor="hand2"))
         self._simple_preview_canvas.bind("<Leave>", lambda e: self._simple_preview_canvas.configure(cursor=""))
+
+        # Bind mousewheel to preview canvas for Zoom
+        def _on_simple_preview_mousewheel(event):
+             try:
+                 self._cycle_zoom(event.delta, self._simple_zoom_var, lambda: self._simple_zoom_combo.event_generate("<<ComboboxSelected>>"))
+                 return "break"
+             except:
+                 pass
+        self._simple_preview_canvas.bind("<MouseWheel>", _on_simple_preview_mousewheel)
         
         # Store reference to current preview image
         self._simple_current_image = None
@@ -7093,6 +8695,34 @@ class PaletteTool:
             
             if not fashion_type:
                 return []
+
+            # If fashion_type is a verbose name (e.g. "Checkered Dress"), convert it back to key (e.g. "fashion_1")
+            if fashion_type and not fashion_type.startswith("fashion_") and fashion_type != "hair" and fashion_type != "3rd_job_base":
+                 # We need to find which key corresponds to this name for the current character
+                 # Extract character number from layer name first to ensure we look up the right map
+                 temp_layer_name = current_layer.name.lower()
+                 temp_char_num = None
+                 import re
+                 for pattern in [r'chr(\d{3})', r'chr(\d+)', r'(\d{3})', r'(\d+)']:
+                    char_match = re.search(pattern, temp_layer_name)
+                    if char_match:
+                        temp_char_num = char_match.group(1).zfill(3)
+                        break
+                 
+                 if temp_char_num and hasattr(self, 'fashion_names'):
+                     # Handle Paula mapping for name lookup
+                     map_lookup_id = temp_char_num
+                     if temp_char_num == "025": map_lookup_id = "100"
+                     elif temp_char_num == "026": map_lookup_id = "101"
+                     elif temp_char_num == "027": map_lookup_id = "102"
+                     
+                     if map_lookup_id in self.fashion_names:
+                         mapping = self.fashion_names[map_lookup_id]
+                         # Case-insensitive search
+                         for key, name in mapping.items():
+                             if name.lower() == fashion_type.lower():
+                                 fashion_type = key
+                                 break
             
             # Extract character number from layer name
             layer_name = current_layer.name.lower()
@@ -7125,7 +8755,7 @@ class PaletteTool:
                         # Skip ALL green variant keying colors (00FF00 through 00FF15)
                         if isinstance(color, (tuple, list)) and len(color) >= 3:
                             r, g, b = color
-                            if g == 255 and r == 0 and 0 <= b <= 21:  # Catches all 00FFxx variants
+                            if g == 255 and r == 0 and 0 <= b <= 5:  # Catches all 00FFxx variants
                                 continue
                         
                         # Skip character-specific keying colors
@@ -7134,6 +8764,12 @@ class PaletteTool:
                                 continue
                         elif char_num == "008":  # Raccoon
                             if hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(color):
+                                continue
+                        elif char_num == "003":  # Sheep
+                            if hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(color):
+                                continue
+                        elif char_num == "011":  # Sheep 2nd Job
+                            if hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(color):
                                 continue
                                 
                         # Skip universal keying colors and magenta
@@ -7163,7 +8799,7 @@ class PaletteTool:
                         # Skip ALL green variant keying colors (00FF00 through 00FF15)
                         if isinstance(color, (tuple, list)) and len(color) >= 3:
                             r, g, b = color
-                            if g == 255 and r == 0 and 0 <= b <= 21:  # Catches all 00FFxx variants
+                            if g == 255 and r == 0 and 0 <= b <= 5:  # Catches all 00FFxx variants
                                 continue
                         
                         # Skip character-specific keying colors
@@ -7172,6 +8808,12 @@ class PaletteTool:
                                 continue
                         elif char_num == "008":  # Raccoon
                             if self.is_chr008_keying_color(color):
+                                continue
+                        elif char_num == "003":  # Sheep
+                            if self.is_chr003_keying_color(color):
+                                continue
+                        elif char_num == "011":  # Sheep 2nd Job
+                            if self.is_chr011_keying_color(color):
                                 continue
                             
                         # Skip universal keying colors and magenta
@@ -7220,8 +8862,21 @@ class PaletteTool:
         # Update the preview when canvas size changes
         self._update_simple_preview()
 
+    def _on_simple_preview_middle_click(self, event):
+        """Handle middle mouse button click to start panning immediately without index check."""
+        self._simple_click_moved = False
+        self._simple_pan_start_x = event.x
+        self._simple_pan_start_y = event.y
+        self._simple_is_panning = True  # Always enable panning for middle click
+
+
     def _on_simple_preview_click(self, event):
         """Handle click on simple mode preview to select color index or pick color."""
+        # Reset panning state
+        self._simple_click_moved = False
+        self._simple_pan_start_x = event.x
+        self._simple_pan_start_y = event.y
+        
         if self.colorpicker_active:
             self._colorpick_from_simple_preview(event)
             return
@@ -7282,14 +8937,16 @@ class PaletteTool:
                 display_width = img_width
                 display_height = img_height
             
-            # Calculate the image position (centered in canvas)
-            image_x = (canvas_width - display_width) / 2
-            image_y = (canvas_height - display_height) / 2
+            # Calculate the image position (centered in canvas + pan offset)
+            image_x = (canvas_width - display_width) / 2 + self._simple_pan_offset_x
+            image_y = (canvas_height - display_height) / 2 + self._simple_pan_offset_y
             
             # Check if click is within the image bounds
             if (click_x < image_x or click_x >= image_x + display_width or
                 click_y < image_y or click_y >= image_y + display_height):
-                return  # Click outside image
+                # Click outside image - enable panning
+                self._simple_is_panning = True
+                return
             
             # Convert click coordinates to original image coordinates
             relative_x = click_x - image_x
@@ -7331,9 +8988,44 @@ class PaletteTool:
                     self._selected_indices.clear()
                     self._selected_indices.add(pixel_index)
                     self._update_selection_ui()
+                else:
+                    # Click on non-indexed pixel - enable panning
+                    self._simple_is_panning = True
                     
         except Exception as e:
             print(f"CONSOLE ERROR MSG: Error handling simple preview click: {e}")
+
+    def _on_simple_preview_drag(self, event):
+        """Handle dragging on the simple preview canvas to pan the image."""
+        if self._simple_is_panning:
+            # Mark that the mouse has moved
+            self._simple_click_moved = True
+            
+            # Calculate the drag delta
+            delta_x = event.x - self._simple_pan_start_x
+            delta_y = event.y - self._simple_pan_start_y
+            
+            # Update pan offset
+            self._simple_pan_offset_x += delta_x
+            self._simple_pan_offset_y += delta_y
+            
+            # Update start position for next drag event
+            self._simple_pan_start_x = event.x
+            self._simple_pan_start_y = event.y
+            
+            # Update the preview with new pan offset
+            self._update_simple_preview()
+            
+            # Change cursor to indicate panning
+            self._simple_preview_canvas.configure(cursor="fleur")
+    
+    def _on_simple_preview_release(self, event):
+        """Handle mouse release to end panning."""
+        if self._simple_is_panning:
+            self._simple_is_panning = False
+            # Restore cursor
+            self._simple_preview_canvas.configure(cursor="hand2")
+
 
     def _update_simple_preview(self):
         """Update the simple mode preview image"""
@@ -7412,9 +9104,9 @@ class PaletteTool:
                 # Clear canvas and display image
                 self._simple_preview_canvas.delete("all")
                 
-                # Center the image in the canvas using dynamic dimensions
-                center_x = canvas_width // 2
-                center_y = canvas_height // 2
+                # Center the image in the canvas using dynamic dimensions + pan offset
+                center_x = canvas_width // 2 + int(self._simple_pan_offset_x)
+                center_y = canvas_height // 2 + int(self._simple_pan_offset_y)
                 self._simple_preview_canvas.create_image(center_x, center_y, anchor="center", image=photo)
                 
                 # Keep reference to prevent garbage collection
@@ -7633,6 +9325,9 @@ class PaletteTool:
                 if hasattr(self, 'current_character') and hasattr(self, 'current_job'):
                     self.statistics.add_palette_edit(self.current_character, self.current_job)
                     self.statistics.live_palette_files_edited.add(current_layer.name)
+                # Track index modification (outside the loop to count as single event)
+                if hasattr(self, 'statistics'):
+                    self.statistics.track_index_modification(targets)
                 self._save_statistics()
                 
                 # Update swatch if in simple mode
@@ -7860,59 +9555,83 @@ class PaletteTool:
                     continue
                     
                 btn = self._live_swatches[display_idx]
-                if palette_idx in self._selected_indices:
-                    # Get the current color to preserve it
-                    r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[palette_idx]
-                    hex_color = f"#{r:02x}{g:02x}{b:02x}"
-                    
-                    # Always use red border for selected colors
-                    border_color = "red"
-                    
-                    # Redraw with border highlight (40x40 for simple mode)
-                    btn.delete("all")
-                    # Draw border
-                    btn.create_rectangle(0, 0, 40, 40, fill=border_color, outline="")
-                    # Draw color rectangle inside
-                    btn.create_rectangle(1, 1, 39, 39, fill=hex_color, outline="")
-                else:
-                    # Get the current color to preserve it
-                    r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[palette_idx]
-                    hex_color = f"#{r:02x}{g:02x}{b:02x}"
-                    
-                    # Redraw with normal appearance
-                    btn.delete("all")
-                    btn.create_rectangle(1, 1, 39, 39, fill=hex_color, outline="black", width=1)
+                
+                # Check if widget exists
+                try:
+                    if not btn.winfo_exists():
+                        continue
+                except Exception:
+                    continue
+                
+                try:
+                    if palette_idx in self._selected_indices:
+                        # Get the current color to preserve it
+                        r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[palette_idx]
+                        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+                        
+                        # Always use red border for selected colors
+                        border_color = "red"
+                        
+                        # Redraw with border highlight (40x40 for simple mode)
+                        btn.delete("all")
+                        # Draw border
+                        btn.create_rectangle(0, 0, 40, 40, fill=border_color, outline="")
+                        # Draw color rectangle inside
+                        btn.create_rectangle(1, 1, 39, 39, fill=hex_color, outline="")
+                    else:
+                        # Get the current color to preserve it
+                        r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[palette_idx]
+                        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+                        
+                        # Redraw with normal appearance
+                        btn.delete("all")
+                        btn.create_rectangle(1, 1, 39, 39, fill=hex_color, outline="black", width=1)
+                except Exception:
+                    pass
         else:
             # Advanced mode: update all 256 colors
             for i, btn in enumerate(self._live_swatches):
                 if btn is None:
                     continue
                     
-                if i in self._selected_indices:
-                    # Get the current color to preserve it
-                    r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[i]
-                    hex_color = f"#{r:02x}{g:02x}{b:02x}"
-                    
-                    # Always use red border for selected colors
-                    border_color = "red"
-                    
-                    # Redraw with border highlight (keep 20x20 and 19x19 as requested)
-                    btn.delete("all")
-                    # Draw border
-                    btn.create_rectangle(0, 0, 20, 20, fill=border_color, outline="")
-                    # Draw color rectangle inside
-                    btn.create_rectangle(1, 1, 19, 19, fill=hex_color, outline="")
-                else:
-                    # Get the current color to preserve it
-                    r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[i]
-                    hex_color = f"#{r:02x}{g:02x}{b:02x}"
-                    
-                    # Redraw with normal appearance
-                    btn.delete("all")
-                    btn.create_rectangle(1, 1, 19, 19, fill=hex_color, outline="black", width=1)
+                # Check if widget exists
+                try:
+                    if not btn.winfo_exists():
+                        continue
+                except Exception:
+                    continue
+                
+                try:
+                    if i in self._selected_indices:
+                        # Get the current color to preserve it
+                        r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[i]
+                        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+                        
+                        # Always use red border for selected colors
+                        border_color = "red"
+                        
+                        # Redraw with border highlight (keep 20x20 and 19x19 as requested)
+                        btn.delete("all")
+                        # Draw border
+                        btn.create_rectangle(0, 0, 20, 20, fill=border_color, outline="")
+                        # Draw color rectangle inside
+                        btn.create_rectangle(1, 1, 19, 19, fill=hex_color, outline="")
+                    else:
+                        # Get the current color to preserve it
+                        r, g, b = self._live_layers[self._live_name_to_index[self._live_target_name.get()]].colors[i]
+                        hex_color = f"#{r:02x}{g:02x}{b:02x}"
+                        
+                        # Redraw with normal appearance
+                        btn.delete("all")
+                        btn.create_rectangle(1, 1, 19, 19, fill=hex_color, outline="black", width=1)
+                except Exception:
+                    pass
         
         if hasattr(self, "_sel_count_lbl"):
-            self._sel_count_lbl.config(text=f"({len(self._selected_indices)} selected)")
+            try:
+                self._sel_count_lbl.config(text=f"({len(self._selected_indices)} selected)")
+            except Exception:
+                pass
 
     def _live_select_all(self):
         """Select all editable color swatches in the current palette."""
@@ -8096,6 +9815,7 @@ class PaletteTool:
             print(f"CONSOLE ERROR MSG: Error updating main image display: {e}")
 
     def _open_icon_editor(self):
+        self._deselect_frame()
         """Open the icon palette editor for the current character and fashion type"""
         if not self.current_character:
             messagebox.showwarning("Warning", "Please open a base fashion piece first.")
@@ -8150,8 +9870,9 @@ class PaletteTool:
         except Exception as e:
             messagebox.showerror("Error", f"Could not open icon editor: {str(e)}")
 
-    def reset_to_original(self):
-        """Reset all palette selections to their initial state as if the program just started"""
+    def reset_pals(self):
+        """Reset all palette selections to their initial state (Reset Pals)"""
+        self._deselect_frame(refresh=False)
         if not self.original_image:
             messagebox.showinfo("Reset", "No image loaded")
             return
@@ -8188,7 +9909,41 @@ class PaletteTool:
         
         # Update the image display
         self._debounced_display_update()
-        messagebox.showinfo("Reset", "Reset all palette selections to initial state")
+        messagebox.showinfo("Reset Pals", "All palette selections have been reset to original.")
+
+    def reset_frames(self):
+        """Reset all frame viewing options (hidden frames, etc.) to default"""
+        if not messagebox.askyesno("Reset Frames", "Are you sure you want to unhide all hidden frames and reset frame navigation for this character?"):
+            return
+            
+        char_job_key = self._get_char_job_key()
+        if char_job_key and char_job_key in self.hidden_frames:
+            del self.hidden_frames[char_job_key]
+            # Log for tracking
+            print(f"DEBUG[reset_frames]: Cleared all hidden frames for {char_job_key}")
+            
+        # Also reset custom start index and current frame for this character
+        if hasattr(self, 'current_character'):
+            self.custom_start_index = 0
+            self.current_image_index = 0
+            
+            # Also reset per-character settings in memory
+            if self.current_character in self.per_character_settings:
+                settings = self.per_character_settings[self.current_character]
+                settings['custom_start_index'] = 0
+                settings['last_viewed_frame'] = 0
+            
+            self._save_character_settings(self.current_character)
+            
+            # Load the first image to reset the preview if in single mode
+            if self.preview_var.get() == "single" and self.current_character in self.character_images:
+                images = self.character_images[self.current_character]
+                if images:
+                    self.load_image_from_path(images[0])
+            
+        self._save_per_character_frame_settings()
+        self.update_image_display()
+        messagebox.showinfo("Reset Frames", "All frame visibility settings and preview position have been reset for this character.")
 
     def _live_on_swatch_click(self, i, event):
         # Prevent clicks during palette switching to avoid cross-palette contamination
@@ -8226,6 +9981,104 @@ class PaletteTool:
         
         # Clear the flag to allow any potential grid operations again
         self._updating_live_selection = False
+
+    def on_frame_click(self, event, index):
+        """Handle frame click events, specifically for multi-selection with Ctrl."""
+        # Check for Control key (state 4 on Windows, varies on others but usually bit 2)
+        # Also check for Mac Command key if needed, taking a broad approach
+        ctrl_held = (event.state & 0x0004) or (event.state & 0x20000) # 4 is Ctrl, 20000 often Command on Mac
+
+        if not hasattr(self, 'selected_frames'):
+            self.selected_frames = set()
+
+        if ctrl_held:
+            # Toggle selection
+            if index in self.selected_frames:
+                self.selected_frames.remove(index)
+            else:
+                self.selected_frames.add(index)
+            
+            # Force update of display to show simple red borders
+            # This is slightly inefficient but safe
+            self.update_image_display()
+            
+            # Return False to indicate we handled it and should STOP further processing 
+            # (like palette identification)
+            return False
+        else:
+            # Regular click
+            
+            # If we had a multi-selection and clicked a single frame (unselected or even selected?),
+            # the user "stops the frame selection process".
+            # Requirement: "deselect the frames ... by left-clicking on an unselected frame"
+            
+            was_multi_selected = bool(self.selected_frames)
+            
+            # Clear multi-selection on regular click
+            self.selected_frames.clear()
+            
+            if was_multi_selected:
+                # If we cleared selection, we should trigger a redraw to remove red borders
+                 self.update_image_display()
+            
+            # Return True to allow standard processing (single frame select, palette select etc)
+            return True
+
+    def _show_frame_context_menu(self, event, index):
+        """Show context menu for frames, supporting multi-selection."""
+        import tkinter as tk
+        menu = tk.Menu(self.master, tearoff=0)
+        
+        # Check if this frame is part of a multi-selection
+        is_multi_part = hasattr(self, 'selected_frames') and index in self.selected_frames
+        count = len(self.selected_frames) if hasattr(self, 'selected_frames') else 0
+        
+        if is_multi_part and count > 1:
+            # Multi-select actions
+            menu.add_command(label=f"Hide {count} Selected Frames", command=self._hide_selected_frames)
+            menu.add_separator()
+            menu.add_command(label="Deselect All", command=self._deselect_frame)
+        else:
+            # Single frame actions
+            menu.add_command(label="Hide Frame", command=lambda i=index: self._hide_frame(i))
+            
+        menu.add_separator()
+        menu.add_command(label="Cancel")
+        
+        try:
+            menu.tk_popup(event.x_root, event.y_root)
+        finally:
+            menu.grab_release()
+
+    def _hide_selected_frames(self):
+        """Hide all currently selected frames."""
+        if not hasattr(self, 'selected_frames') or not self.selected_frames:
+            return
+            
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+            
+        if char_job_key not in self.hidden_frames:
+            self.hidden_frames[char_job_key] = set()
+            
+        # Add all selected frames to hidden
+        count = 0
+        for idx in self.selected_frames:
+            if idx not in self.hidden_frames[char_job_key]:
+                self.hidden_frames[char_job_key].add(idx)
+                count += 1
+                
+        # Clear selection
+        self.selected_frames.clear()
+        
+        # Log and save
+        if count > 0:
+            print(f"DEBUG: Hidden {count} frames for {char_job_key}")
+            self._save_per_character_frame_settings()
+            
+        # Update display
+        self.update_image_display()
 
     def _sync_hsv_from_rgb(self, r, g, b):
         try:
@@ -8716,15 +10569,33 @@ class PaletteTool:
         return
 
 
-    def _open_gradient_menu(self):
+    def _open_gradient_menu(self, parent=None, is_compact=False):
         """Open the gradient/hue adjustment menu."""
         import colorsys
         
+        # Determine parent and mode
+        self._gradient_is_compact = is_compact
+        if parent:
+            target_parent = parent
+        elif hasattr(self, '_live_editor_window') and self._live_editor_window and self._live_editor_window.winfo_exists():
+            target_parent = self._live_editor_window
+        else:
+            target_parent = self.master
+            
+        # For compact mode, save original colors for reset
+        if is_compact:
+            self._compact_original_colors = {}
+            if hasattr(self, 'last_selected_palette') and self.last_selected_palette:
+                for layer in self.palette_layers:
+                    if self.last_selected_palette in getattr(layer, 'name', ''):
+                        self._compact_original_colors[layer.name] = layer.colors.copy()
+                        break
+        
         # Create gradient menu window
-        gradient_window = tk.Toplevel(self._live_editor_window)
+        gradient_window = tk.Toplevel(target_parent)
         gradient_window.title("Gradient Hue Adjustment")
         gradient_window.resizable(False, False)
-        gradient_window.transient(self._live_editor_window)
+        gradient_window.transient(target_parent)
         gradient_window.grab_set()
         
         # Main frame
@@ -8898,8 +10769,13 @@ class PaletteTool:
         gradient_window.update_idletasks()
         width = gradient_window.winfo_width()
         height = gradient_window.winfo_height()
-        x = self._live_editor_window.winfo_x() + (self._live_editor_window.winfo_width() - width) // 2
-        y = self._live_editor_window.winfo_y() + (self._live_editor_window.winfo_height() - height) // 2
+        try:
+            x = target_parent.winfo_x() + (target_parent.winfo_width() - width) // 2
+            y = target_parent.winfo_y() + (target_parent.winfo_height() - height) // 2
+        except:
+            # Fallback if parent not valid/visible
+            x = (self.master.winfo_screenwidth() - width) // 2
+            y = (self.master.winfo_screenheight() - height) // 2
         gradient_window.geometry(f"+{x}+{y}")
         
         # Add arrow key bindings to control simple preview frames when gradient menu is open
@@ -8926,15 +10802,58 @@ class PaletteTool:
             self.char_num = m.group(1) if m else "000"
         # ---------------------------------------
 
-        ly = self._live_current_layer()
-        if ly is None:
-            return
-
-        # Determine which indices to modify based on multiselect state
-        if self._multi_select.get() and self._selected_indices:
-            indices_to_modify = self._selected_indices
+        if getattr(self, '_gradient_is_compact', False):
+            # Compact mode logic
+            if not hasattr(self, 'last_selected_palette') or not self.last_selected_palette:
+                return
+            
+            ly = None
+            palette_name = self.last_selected_palette
+            palette_type = getattr(self, 'last_selected_palette_type', '')
+            
+            if hasattr(self, 'palette_layers'):
+                for layer in self.palette_layers:
+                    layer_name = getattr(layer, 'name', '')
+                    layer_type = getattr(layer, 'palette_type', '')
+                    
+                    # Match by name or type using robust logic (consistent with other parts of the app)
+                    import os
+                    names_match = (palette_name == layer_name) or (os.path.basename(palette_name) == layer_name)
+                    
+                    if names_match or (palette_type == 'hair' and layer_type == 'hair') or \
+                       (palette_type == 'third_job' and layer_type.startswith('3rd_job')) or \
+                       (palette_type == 'fashion' and layer_type.startswith('fashion')):
+                        ly = layer
+                        break
+            
+            if ly is None:
+                return
+                
+            # Match Live Editor logic: If Multi-Select ON and have selection, apply to selection.
+            # Otherwise (Single select OR Multi-select with empty selection), apply to active range only.
+            # In compact mode, ONLY apply to selected colors
+            if getattr(self, 'view_mode', '') == "Small Preview Mode":
+                if not hasattr(self, 'compact_selected_colors') or not self.compact_selected_colors:
+                    return # Do nothing if nothing selected
+                indices_to_modify = self.compact_selected_colors
+            elif getattr(self, 'compact_multiselect_var', None) and self.compact_multiselect_var.get() and hasattr(self, 'compact_selected_colors') and self.compact_selected_colors:
+                indices_to_modify = self.compact_selected_colors
+            else:
+                # Default to active indices (filtered view) instead of all colors
+                indices_to_modify = self._get_editable_color_indices(ly)
+                # Filter out 255
+                indices_to_modify = [idx for idx in indices_to_modify if idx != 255]
         else:
-            indices_to_modify = range(len(ly.colors))
+            # Traditional Live Editor mode logic
+            ly = self._live_current_layer()
+            if ly is None:
+                return
+
+            # Determine which indices to modify based on multiselect state
+            if self._multi_select.get() and self._selected_indices:
+                indices_to_modify = self._selected_indices
+            else:
+                indices_to_modify = range(len(ly.colors))
             
         # Special handling for neutral colors and variants
         if target_hue is None or variant in ["grey", "light_grey", "dark_grey", "black", "white"]:
@@ -9083,13 +11002,32 @@ class PaletteTool:
                 
                 ly.colors[i] = candidate_color
         
+        # Sync HSV sliders to the new color of the currently selected index
+        # This prevents sliders from being "stale" and reverting colors when moved
+        if hasattr(self, "_live_selected_index") and hasattr(self, "_sync_hsv_from_rgb"):
+            # Only sync if not in compact mode or if index valid
+            if not getattr(self, '_gradient_is_compact', False):
+                idx = self._live_selected_index
+                if 0 <= idx < len(ly.colors):
+                    r, g, b = ly.colors[idx]
+                    self._sync_hsv_from_rgb(r, g, b)
+
         # Update the UI
-        self._live_refresh_swatches()
+        if getattr(self, '_gradient_is_compact', False):
+            if hasattr(self, 'update_compact_palette_editor'):
+                self.update_compact_palette_editor()
+        else:
+            self._live_refresh_swatches()
+            
         self._debounced_display_update()
         
         # Update selection UI if available
         if hasattr(self, "_update_selection_ui"):
             self._update_selection_ui()
+        
+        # Track statistics: gradient applied to indexes
+        if hasattr(self, 'statistics'):
+            self.statistics.track_index_modification(indices_to_modify)
     
     def _update_gradient_settings(self, setting, value):
         """Update the HSL adjustment settings."""
@@ -9106,6 +11044,29 @@ class PaletteTool:
         self._gradient_adjust_hue = True
         self._gradient_adjust_saturation = False
         self._gradient_adjust_value = False
+        
+        if getattr(self, '_gradient_is_compact', False):
+            # Compact mode reset
+            if not hasattr(self, '_compact_original_colors'):
+                return
+            
+            # Find active layer
+            ly = None
+            if hasattr(self, 'last_selected_palette') and self.last_selected_palette:
+                for layer in self.palette_layers:
+                    if self.last_selected_palette in getattr(layer, 'name', ''):
+                        ly = layer
+                        break
+            
+            if ly and ly.name in self._compact_original_colors:
+                ly.colors = self._compact_original_colors[ly.name].copy()
+                
+                # Update UI
+                if hasattr(self, 'update_compact_palette_editor'):
+                    self.update_compact_palette_editor()
+                self._debounced_display_update()
+            return
+            
         ly = self._live_current_layer()
         if ly is None:
             return
@@ -9267,10 +11228,14 @@ class PaletteTool:
         # If all else fails, return the original color
         return color
 
-    def _live_save_item_pal(self):
+    def _live_save_item_pal(self, layer=None):
         from tkinter import messagebox
         
-        ly = self._live_current_layer()
+        if layer:
+            ly = layer
+        else:
+            ly = self._live_current_layer()
+            
         if ly is None:
             return
         colors = ly.colors
@@ -9324,7 +11289,14 @@ class PaletteTool:
                 
             # Update temp cache with saved colors
             if hasattr(self, '_live_temp_palette_cache'):
-                current_name = self._live_target_name.get()
+                current_name = None
+                # Safely get current name from live editor UI if it exists
+                if hasattr(self, '_live_target_name') and self._live_target_name:
+                    try:
+                        current_name = self._live_target_name.get()
+                    except:
+                        pass
+                
                 if current_name:
                     self._live_temp_palette_cache[current_name] = ly.colors.copy()
                 
@@ -9393,7 +11365,8 @@ class PaletteTool:
                                 palette_layers=None,  # Don't pass palette layers to avoid refresh issues
                                 live_editor_window=self._live_editor_window,
                                 is_quicksave_mode=False,  # Editor mode - allow user to name file
-                                icon_handler=icon_handler
+                                icon_handler=icon_handler,
+                                ui_mode=getattr(self, 'live_pal_ui_mode', 'Simple')
                             )
                             # Bring the icon editor to the front after creation
                             editor._bring_to_front()
@@ -9402,6 +11375,7 @@ class PaletteTool:
                             messagebox.showerror("Error", f"Failed to open icon editor: {e}")
             
             # Only bring the PAL editor window to the front if we didn't open the icon editor
+            # And only if the window actually exists
             if icon_choice != "openeditor":
                 self._bring_live_editor_to_front()
         except Exception as e:
@@ -9479,7 +11453,8 @@ class PaletteTool:
                 palette_layers=self.palette_layers,  # Pass palette layers to enable dropdown refresh
                 live_editor_window=self._live_editor_window,
                 is_quicksave_mode=False,  # Editor mode - allow user to name file
-                icon_handler=icon_handler
+                icon_handler=icon_handler,
+                ui_mode=getattr(self, 'live_pal_ui_mode', 'Simple')
             )
         except Exception as e:
             messagebox.showerror("Error", f"Failed to open icon editor: {e}")
@@ -9513,7 +11488,10 @@ class PaletteTool:
         live_editor = getattr(self, '_live_editor_window', None)
         # Set the main window reference
         icon_handler.main_window = self
-        icon_handler.open_icon_editor(self.palette_layers, live_editor)
+        # Pass current UI mode
+        ui_mode = getattr(self, 'live_pal_ui_mode', 'Simple')
+        last_pal = getattr(self, 'last_selected_palette', None)
+        icon_handler.open_icon_editor(self.palette_layers, live_editor, ui_mode, last_selected_palette=last_pal)
     
     def _quick_export_icon(self):
         """Quickly export icon without opening the editor."""
@@ -9526,13 +11504,22 @@ class PaletteTool:
         if not active_layers:
             return  # Silently return - no prompt
             
-        # Check if current layer is hair or third job - if so, silently return
-        current_layer = None
-        for layer in active_layers:
-            if hasattr(layer, 'palette_type'):
-                palette_type = str(layer.palette_type).lower()
-                if palette_type in ("hair", "3rd_job_base"):
-                    return  # Silently return - no prompt for hair/third job
+        # Determine the target layer first based on last_selected_palette
+        last_pal = getattr(self, 'last_selected_palette', None)
+        target_layer = None
+        if last_pal:
+            import os
+            last_pal_base = os.path.basename(last_pal)
+            for ly in active_layers:
+                if ly.name == last_pal_base:
+                    target_layer = ly
+                    break
+        
+        # If the targeted layer is hair or third job, silently return
+        if target_layer and hasattr(target_layer, 'palette_type'):
+            palette_type = str(target_layer.palette_type).lower()
+            if palette_type in ("hair", "3rd_job_base"):
+                return  # Silently return - no prompt for hair/third job
         
         # Filter out hair and third job layers
         base_fashion_layers = [ly for ly in active_layers if hasattr(ly, "palette_type") and 
@@ -9542,14 +11529,69 @@ class PaletteTool:
         if not base_fashion_layers:
             return  # Silently return - no prompt
 
-        # Prefer an active fashion layer if present
-        default_idx = 0
-        for i, ly in enumerate(active_layers):
-            if hasattr(ly, "palette_type") and ly.palette_type.startswith("fashion"):
-                default_idx = i
-                break
+        # If we have a target layer from last_selected_palette, use it if it's fashion
+        selected_layer = None
+        if target_layer and hasattr(target_layer, "palette_type") and target_layer.palette_type.startswith("fashion_"):
+            selected_layer = target_layer
 
-        ly = active_layers[default_idx]
+        if not selected_layer:
+            if len(base_fashion_layers) > 1:
+                # Fallback to dialog if we couldn't determine target or target wasn't fashion
+                import tkinter as tk
+                from tkinter import ttk
+                # ... (rest of the dialog logic as is)
+                
+                dialog = tk.Toplevel(self.master)
+                dialog.title("Select Layer")
+                dialog.geometry("350x150")
+                dialog.transient(self.master)
+                dialog.grab_set()
+                
+                # Center dialog
+                if hasattr(self, '_center_window_on_parent'):
+                    self._center_window_on_parent(dialog, self.master)
+                
+                tk.Label(dialog, text="Multiple layers selected.\nChoose which one to export:", pady=10).pack()
+                
+                selected_var = tk.StringVar()
+                # Default to first one
+                selected_var.set(base_fashion_layers[0].name)
+                
+                # Map names to layers
+                layer_map = {ly.name: ly for ly in base_fashion_layers}
+                
+                combo = ttk.Combobox(dialog, textvariable=selected_var, values=list(layer_map.keys()), state="readonly", width=30)
+                combo.pack(padx=20, pady=5)
+                
+                result = {"layer": None}
+                
+                def on_ok():
+                    if selected_var.get() in layer_map:
+                        result["layer"] = layer_map[selected_var.get()]
+                    dialog.destroy()
+                    
+                def on_cancel():
+                    dialog.destroy()
+                
+                # Handle window close button
+                dialog.protocol("WM_DELETE_WINDOW", on_cancel)
+                    
+                btn_frame = tk.Frame(dialog)
+                btn_frame.pack(pady=10)
+                
+                tk.Button(btn_frame, text="Export", command=on_ok, width=10).pack(side=tk.LEFT, padx=5)
+            tk.Button(btn_frame, text="Cancel", command=on_cancel, width=10).pack(side=tk.LEFT, padx=5)
+            
+            self.master.wait_window(dialog)
+            
+            if result["layer"]:
+                selected_layer = result["layer"]
+            else:
+                return # User cancelled
+        else:
+            selected_layer = base_fashion_layers[0]
+
+        ly = selected_layer
         
         # Extract character ID and item name from the layer
         char_match = re.search(r'(?:chr)?(\d{3})', ly.name)
@@ -9762,7 +11804,12 @@ class PaletteTool:
                             print(f"Found {len(saved_palette)} colors")
                             
                             # Prompt user for filename
-                            default_name = f"{char_id}_{fashion_type}.bmp"
+                            pal_name = os.path.splitext(os.path.basename(path))[0]
+                            # Remove temp prefix if present
+                            if pal_name.startswith("temp_"):
+                                pal_name = pal_name[5:]
+                            
+                            default_name = f"{char_id}_{fashion_type}_{pal_name}.bmp"
                             file_path = filedialog.asksaveasfilename(
                                 title="Save Icon As",
                                 defaultextension=".bmp",
@@ -9782,20 +11829,17 @@ class PaletteTool:
                                 icon_handler.main_window = self
                                 
                                 # Find the base BMP path for the character/fashion
-                                base_bmp_name = icon_handler._find_base_bmp_name(char_id, fashion_type)
-                                if base_bmp_name:
-                                    # Construct the BMP path
-                                    bmp_path = os.path.join(icon_handler.root_dir, "src", "rawbmps", char_id, f"{base_bmp_name}.bmp")
-                                    
+                                bmp_path, _ = icon_handler._get_icon_paths(char_id, fashion_type)
+                                
+                                if bmp_path and os.path.exists(bmp_path):
                                     # Get keying color
                                     keying_color = icon_handler._determine_keying_color(saved_palette)
                                     
-                                    success = icon_handler.save_as_icon_with_colors(
+                                    success = icon_handler.save_as_icon(
                                         char_id,
                                         fashion_type,
                                         saved_palette,
-                                        keying_color,
-                                        bmp_path,
+                                        path,
                                         file_path
                                     )
                                     if success:
@@ -9806,7 +11850,7 @@ class PaletteTool:
                                     messagebox.showerror("Error", "Could not find base BMP for this character/fashion.")
                         except Exception as e:
                             print(f"CONSOLE ERROR MSG: Error saving icon: {e}")
-                            messagebox.showerror("Error", f"Failed to save icon: {e}")
+                            messagebox.showerror("Error", f"Failed to save palette: {str(e)}")
             
             # Bring dialog back to front
             dialog.lift()
@@ -10140,6 +12184,7 @@ class PaletteTool:
         credits_dialog.geometry(f"+{x}+{y}")
     
     def show_statistics(self):
+        self._deselect_frame()
         """Show statistics dialog"""
         StatisticsDialog(self)
     
@@ -10213,6 +12258,100 @@ class PaletteTool:
         except Exception as e:
             pass
     
+    def _open_live_pal_settings_menu(self):
+        """Open settings menu for Live Pal Editor UI mode selection."""
+        if not self._live_editor_window or not self._live_editor_window.winfo_exists():
+            return
+        
+        # Create settings menu window
+        settings_window = tk.Toplevel(self._live_editor_window)
+        settings_window.title("Live Pal Editor Settings")
+        settings_window.resizable(False, False)
+        settings_window.transient(self._live_editor_window)
+        settings_window.grab_set()
+        
+        # Center the window
+        settings_window.update_idletasks()
+        width = 300
+        height = 150
+        x = self._live_editor_window.winfo_x() + (self._live_editor_window.winfo_width() - width) // 2
+        y = self._live_editor_window.winfo_y() + (self._live_editor_window.winfo_height() - height) // 2
+        settings_window.geometry(f"{width}x{height}+{x}+{y}")
+        
+        # Main frame
+        main_frame = tk.Frame(settings_window, padx=15, pady=15)
+        main_frame.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        tk.Label(main_frame, text="Palette Display Mode", font=("Arial", 10, "bold")).pack(pady=(0, 10))
+        
+        # UI mode selection
+        ui_mode_var = tk.StringVar(value=self.live_pal_ui_mode)
+        
+        tk.Radiobutton(main_frame, text="Simple (Filtered Colors)", variable=ui_mode_var, value="Simple").pack(anchor=tk.W, pady=2)
+        tk.Radiobutton(main_frame, text="Advanced (16x16 Grid - All 256 Colors)", variable=ui_mode_var, value="Advanced").pack(anchor=tk.W, pady=2)
+        
+        # Buttons
+        button_frame = tk.Frame(main_frame)
+        button_frame.pack(pady=(15, 0))
+        
+        def apply_settings():
+            new_mode = ui_mode_var.get()
+            if new_mode != self.live_pal_ui_mode:
+                self.live_pal_ui_mode = new_mode
+                self._save_live_pal_ui_mode_setting(new_mode)
+                # Close and reopen the Live Pal Editor to apply changes
+                settings_window.destroy()
+                # Store current state
+                current_target = self._live_target_name.get() if hasattr(self, '_live_target_name') else None
+                # Close current editor
+                if self._live_editor_window and self._live_editor_window.winfo_exists():
+                    self._live_editor_window.destroy()
+                    self._live_editor_window = None
+                # Reopen with new mode
+                self.open_live_palette_editor()
+                # Restore target if possible
+                if current_target and hasattr(self, '_live_target_name'):
+                    try:
+                        self._live_target_name.set(current_target)
+                        self._live_on_target_changed(current_target)
+                    except:
+                        pass
+            else:
+                settings_window.destroy()
+        
+        def cancel():
+            settings_window.destroy()
+        
+        tk.Button(button_frame, text="Apply", command=apply_settings).pack(side=tk.LEFT, padx=5)
+        tk.Button(button_frame, text="Cancel", command=cancel).pack(side=tk.LEFT, padx=5)
+    
+    def _save_live_pal_ui_mode_setting(self, ui_mode):
+        """Save Live Pal Editor UI mode setting to settings.json"""
+        try:
+            import json
+            import os
+            settings_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "settings.json")
+            
+            # Load existing settings
+            settings = {}
+            if os.path.exists(settings_path):
+                try:
+                    with open(settings_path, 'r', encoding='utf-8') as f:
+                        settings = json.load(f)
+                except:
+                    settings = {}
+            
+            # Update live pal editor UI mode
+            settings['live_pal_editor_ui_mode'] = ui_mode
+            
+            # Save back
+            with open(settings_path, 'w', encoding='utf-8') as f:
+                json.dump(settings, f, indent=4)
+        except Exception as e:
+            print(f"Error saving Live Pal UI mode setting: {e}")
+    
+    
     def _center_window_on_parent(self, window, parent=None, width=None, height=None):
         """Center a window on its parent window or screen if no parent."""
         if parent is None:
@@ -10246,6 +12385,682 @@ class PaletteTool:
         
         # Set the window geometry with position
         window.geometry(f"{window_width}x{window_height}+{x}+{y}")
+    
+    def toggle_view_mode(self):
+        """Toggle between Big Picture Mode and Small Preview Mode"""
+        if self.view_mode == "big_picture":
+            # Switch to Small Preview Mode
+            self.view_mode = "small_preview"
+            self.view_mode_button.config(text="Small Preview Mode")
+            
+            # Calculate new height based on active colors section
+            # Start with 1/2 of current height, then subtract active colors height
+            if hasattr(self, 'scroll_frame'):
+                current_height = self.scroll_frame.winfo_height()
+                if current_height > 0:
+                    # Use 1/2 height minus the active colors section height
+                    base_height = int(current_height * 1 / 2)
+                    active_colors_h = getattr(self, 'active_colors_height', 100)
+                    new_height = max(200, base_height - active_colors_h)  # Minimum 200px
+                    self.scroll_frame.config(height=new_height)
+                    
+                    # Store the original height for restoration
+                    self.original_scroll_height = current_height
+            
+            # Show the compact control bar
+            self.compact_control_bar.pack(side="bottom", fill="x", pady=(5, 0))
+            
+            # Ensure main button frame is always visible and on top
+            if hasattr(self, 'main_button_frame'):
+                self.main_button_frame.lift()  # Raise to top of stacking order
+                self.main_button_frame.update_idletasks()  # Force update
+            
+        else:
+            # Switch to Big Picture Mode
+            self.view_mode = "big_picture"
+            self.view_mode_button.config(text="Big Picture Mode")
+            
+            # Restore scroll frame to full height
+            if hasattr(self, 'scroll_frame'):
+                self.scroll_frame.config(height=0)  # Let it expand naturally
+            
+            # Hide the compact control bar
+            self.compact_control_bar.pack_forget()
+        
+        # Update the display
+        if hasattr(self, 'load_character_image'):
+            self.load_character_image()
+    
+    def _get_char_job_key(self):
+        """Get the character/job key for frame visibility tracking"""
+        if not hasattr(self, 'current_character') or not self.current_character:
+            return None
+        current_job = self.job_var.get() if hasattr(self, 'job_var') else None
+        return f"{self.current_character}_{current_job}"
+    
+    def _save_frame_visibility_state(self):
+        """Save current frame visibility state to undo history"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+        
+        # Get current hidden frames for this character/job
+        hidden = self.hidden_frames.get(char_job_key, set()).copy()
+        
+        # Add to history
+        self.frame_visibility_history.append((char_job_key, hidden))
+        
+        # Limit history to max_undo_steps
+        if len(self.frame_visibility_history) > self.max_undo_steps:
+            self.frame_visibility_history.pop(0)
+    
+    def undo_frame_visibility(self):
+        """Undo the last frame visibility change"""
+        if not self.frame_visibility_history:
+            messagebox.showinfo("Undo", "No more undo steps available")
+            return
+        
+        # Pop the last state
+        char_job_key, hidden_frames = self.frame_visibility_history.pop()
+        
+        # Restore the state
+        self.hidden_frames[char_job_key] = hidden_frames.copy()
+        
+        # Update display
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+        
+        # Save settings
+        self._save_settings()
+    
+    def toggle_all_frames_visibility(self):
+        """Toggle visibility of all frames except current one"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key or not hasattr(self, 'current_character'):
+            return
+        
+        if self.current_character not in self.character_images:
+            return
+        
+        images = self.character_images[self.current_character]
+        if not images:
+            return
+        
+        # Save current state for undo
+        self._save_frame_visibility_state()
+        
+        # Get current hidden frames
+        hidden = self.hidden_frames.get(char_job_key, set())
+        
+        # Determine current frame
+        current_frame = self.current_image_index
+        
+        # Check if all but current are hidden
+        all_but_current_hidden = all(
+            i in hidden for i in range(len(images)) if i != current_frame
+        )
+        
+        if all_but_current_hidden:
+            # Show all frames
+            self.hidden_frames[char_job_key] = set()
+        else:
+            # Hide all but current
+            self.hidden_frames[char_job_key] = set(
+                i for i in range(len(images)) if i != current_frame
+            )
+        
+        # Update display
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+        
+        # Save settings
+        self._save_settings()
+    
+    def toggle_selected_frames_visibility(self):
+        """Toggle visibility of selected frames"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key or not self.selected_frames:
+            messagebox.showinfo("No Selection", "Please select frames first (Ctrl+Click)")
+            return
+        
+        # Save current state for undo
+        self._save_frame_visibility_state()
+        
+        # Get current hidden frames
+        if char_job_key not in self.hidden_frames:
+            self.hidden_frames[char_job_key] = set()
+        
+        hidden = self.hidden_frames[char_job_key]
+        
+        # Check if any selected frames are visible
+        any_visible = any(frame not in hidden for frame in self.selected_frames)
+        
+        if any_visible:
+            # Hide all selected frames
+            hidden.update(self.selected_frames)
+        else:
+            # Show all selected frames
+            hidden.difference_update(self.selected_frames)
+        
+        # Update display
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+        
+        # Save settings
+        self._save_settings()
+    
+    def quick_export(self):
+        """Quick export current frame"""
+        # Use existing export functionality
+        if hasattr(self, 'export_current_frame'):
+            self.export_current_frame()
+        elif hasattr(self, '_open_icon_editor'):
+            # Open icon editor for export
+            self._open_icon_editor()
+    
+    def on_palette_selection_change(self, palette_type, palette_path):
+        """Track palette selection for live editor"""
+        # Always update even if redundant to ensure it's considered the 'last' selection
+        self.last_selected_palette = palette_path
+        self.last_selected_palette_type = palette_type
+        
+        # Update compact palette editor if in small preview mode
+        if getattr(self, 'view_mode', '') == "small_preview":
+            self.update_compact_palette_editor()
+    
+
+    def _compact_hsv_slider_changed(self, *args):
+        """Handle HSV slider changes in compact editor with live preview"""
+        # Apply HSV changes live (like the live palette editor)
+        if not hasattr(self, 'compact_selected_colors') or not self.compact_selected_colors:
+            return
+        
+        # Get HSV values
+        hue_shift = self.compact_hue_var.get() if hasattr(self, 'compact_hue_var') else 0
+        sat_shift = self.compact_sat_var.get() if hasattr(self, 'compact_sat_var') else 0
+        val_shift = self.compact_val_var.get() if hasattr(self, 'compact_val_var') else 0
+        
+        # Find the matching palette layer
+        if not hasattr(self, 'last_selected_palette') or not self.last_selected_palette:
+            return
+            
+        matching_layer = None
+        palette_name = self.last_selected_palette
+        palette_type = getattr(self, 'last_selected_palette_type', '')
+        
+        if hasattr(self, 'palette_layers'):
+            # PASS 1: Priority - Exact Name Match
+            target_name = os.path.basename(palette_name)
+            for layer in self.palette_layers:
+                layer_name = getattr(layer, 'name', '')
+                if layer_name == target_name:
+                    matching_layer = layer
+                    break
+            
+            # PASS 2: Fallback - Type Match
+            if not matching_layer:
+                for layer in self.palette_layers:
+                    layer_type = getattr(layer, 'palette_type', '')
+                    
+                    if (palette_type == 'hair' and layer_type == 'hair') or \
+                       (palette_type == 'third_job' and layer_type.startswith('3rd_job')) or \
+                       (palette_type == 'fashion' and layer_type.startswith('fashion')):
+                        matching_layer = layer
+                        break
+        
+        if not matching_layer:
+            return
+            
+        # Ensure we have base colors to work from
+        if not hasattr(self, 'compact_base_colors') or not self.compact_base_colors:
+             # If missing base colors, snapshot them now (fallback)
+             self.compact_base_colors = {}
+             for i in self.compact_selected_colors:
+                 if i < len(matching_layer.colors):
+                     self.compact_base_colors[i] = list(matching_layer.colors[i])
+        
+        # Apply HSV to selected colors based on BASE colors
+        import colorsys
+        for idx in self.compact_selected_colors:
+            if idx >= len(matching_layer.colors):
+                continue
+                
+            # Use base color for calculation if available, otherwise current
+            original_color = self.compact_base_colors.get(idx, matching_layer.colors[idx])
+            
+            if original_color is None:
+                continue
+            
+            # Convert RGB to HSV
+            r, g, b = original_color[0] / 255.0, original_color[1] / 255.0, original_color[2] / 255.0
+            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            
+            # Apply shifts
+            h = (h * 360 + hue_shift) % 360 / 360  # Hue wraps around
+            s = max(0, min(1, s + sat_shift / 100))  # Saturation clamped 0-1
+            v = max(0, min(1, v + val_shift / 100))  # Value clamped 0-1
+            
+            # Convert back to RGB
+            r, g, b = colorsys.hsv_to_rgb(h, s, v)
+            new_color = (int(r * 255), int(g * 255), int(b * 255))
+            
+            # Update the layer color
+            matching_layer.colors[idx] = new_color
+            
+            # Update the specific color swatch in the UI
+            if hasattr(self, 'compact_color_widgets') and idx in self.compact_color_widgets:
+                try:
+                    c_frame, c_label = self.compact_color_widgets[idx]
+                    hex_color = f"#{new_color[0]:02x}{new_color[1]:02x}{new_color[2]:02x}"
+                    c_frame.config(bg=hex_color)
+                    c_label.config(bg=hex_color)
+                except Exception:
+                    pass
+        
+        # Update the display
+        self._debounced_display_update()
+    
+    def _compact_hsv_entry_changed(self):
+        """Handle HSV entry changes with validation"""
+        # Clamp values to valid ranges
+        try:
+            hue = max(-180, min(180, self.compact_hue_var.get()))
+            self.compact_hue_var.set(hue)
+        except:
+            self.compact_hue_var.set(0)
+        
+        try:
+            sat = max(-100, min(100, self.compact_sat_var.get()))
+            self.compact_sat_var.set(sat)
+        except:
+            self.compact_sat_var.set(0)
+        
+        try:
+            val = max(-100, min(100, self.compact_val_var.get()))
+            self.compact_val_var.set(val)
+        except:
+            self.compact_val_var.set(0)
+        
+        # Trigger slider changed
+        self._compact_hsv_slider_changed()
+    
+    def export_background_compact(self):
+        """Export background from compact editor"""
+        # Use existing export functionality
+        if hasattr(self, 'export_current_frame'):
+            self.export_current_frame()
+        elif hasattr(self, '_open_icon_editor'):
+            self._open_icon_editor()
+    
+    def export_pal_compact(self):
+        """Export palette from compact editor"""
+        # Find the currently selected palette layer
+        if not hasattr(self, 'last_selected_palette') or not self.last_selected_palette:
+            from tkinter import messagebox
+            messagebox.showinfo("Export Palette", "Please select a palette first.")
+            return
+
+        matching_layer = None
+        palette_name = self.last_selected_palette
+        palette_type = getattr(self, 'last_selected_palette_type', '')
+
+        if hasattr(self, 'palette_layers'):
+            for layer in self.palette_layers:
+                layer_name = getattr(layer, 'name', '')
+                layer_type = getattr(layer, 'palette_type', '')
+                
+                # Match by name or type - same logic as update_compact_palette_editor
+                import os
+                names_match = (palette_name == layer_name) or (os.path.basename(palette_name) == layer_name)
+
+                if names_match or \
+                   (palette_type == 'hair' and layer_type == 'hair') or \
+                   (palette_type == 'third_job' and layer_type.startswith('3rd_job')) or \
+                   (palette_type == 'fashion' and layer_type.startswith('fashion')):
+                    matching_layer = layer
+                    break
+        
+        if matching_layer:
+            # Call save with the specific layer
+            self._live_save_item_pal(layer=matching_layer)
+        else:
+            # Fallback to opening the live editor if we can't find the layer
+            if hasattr(self, 'open_live_palette_editor'):
+                self.open_live_palette_editor()
+
+    
+    def apply_gradient_compact(self):
+        """Apply gradient from compact editor"""
+        # Requirement: If no indexes are selected, gradient button should not work
+        if not hasattr(self, 'compact_selected_colors') or not self.compact_selected_colors:
+            messagebox.showinfo("Selection Required", "Please select one or more colors to apply a gradient.")
+            return
+
+        # Open the gradient menu in compact mode
+        # This will use the window master as parent since we don't have the live editor window
+        self._open_gradient_menu(parent=self.master, is_compact=True)
+
+    def _update_compact_swatch_highlights(self):
+        """Update only the selection highlights in compact mode without rebuilding UI"""
+        if not hasattr(self, '_compact_swatch_widgets'):
+            return
+            
+        for idx, swatch in self._compact_swatch_widgets.items():
+            if idx in self.compact_selected_colors:
+                swatch.config(highlightbackground="red", highlightthickness=2)
+            else:
+                swatch.config(highlightbackground="black", highlightthickness=1)
+
+    def _select_all_compact(self):
+        """Select all editable color swatches in compact mode."""
+        if not hasattr(self, 'compact_selected_colors'):
+            self.compact_selected_colors = set()
+            
+        current_layer = getattr(self, '_compact_active_layer', None)
+        if not current_layer:
+            return
+            
+        editable_indices = self._get_editable_color_indices(current_layer)
+        if not editable_indices:
+            return
+            
+        # Snapshot base colors if this is the first selection
+        if not self.compact_selected_colors:
+            self.compact_base_colors = {}
+            colors = getattr(current_layer, 'colors', [])
+            for idx in editable_indices:
+                if idx < len(colors):
+                    self.compact_base_colors[idx] = colors[idx]
+        
+        # Add all to selection
+        for idx in editable_indices:
+            self.compact_selected_colors.add(idx)
+            
+        # Ensure multi-select is ON if we selected multiple
+        if len(editable_indices) > 1:
+            self.compact_multiselect_var.set(True)
+            
+        # Refresh the UI highlights (no rebuild)
+        self._update_compact_swatch_highlights()
+
+    def _clear_selection_compact(self):
+        """Clear all selected colors in compact mode."""
+        if hasattr(self, 'compact_selected_colors'):
+            self.compact_selected_colors.clear()
+            self.compact_base_colors = {}
+            
+        # Refresh the UI highlights (no rebuild)
+        self._update_compact_swatch_highlights()
+            
+        # Reset sliders if they exist
+        if hasattr(self, 'hue_slider'): # Refers to compact sliders stored in update_compact_palette_editor
+            self.compact_hue_var.set(0)
+            self.compact_sat_var.set(0)
+            self.compact_val_var.set(0)
+            # Trigger update
+            if hasattr(self, '_compact_hsv_slider_changed'):
+                self._compact_hsv_slider_changed()
+
+    
+    def _cycle_zoom(self, delta, var, update_func=None):
+        """Cycle zoom level based on scroll direction with reduced sensitivity"""
+        # Add accumulator if not present
+        if not hasattr(self, '_zoom_accumulator'):
+            self._zoom_accumulator = 0
+            
+        # Accumulate delta
+        self._zoom_accumulator += delta
+        
+        # Sensitivity threshold (120 is one standard notch on Windows)
+        # Using 120 ensures that at least one full notch is required to change zoom
+        threshold = 120
+        
+        if abs(self._zoom_accumulator) < threshold:
+            return
+            
+        values = ["100%", "200%", "300%", "400%", "500%", "Fit"]
+        try:
+            current = var.get()
+            if current in values:
+                curr_idx = values.index(current)
+            else:
+                 curr_idx = 0
+            
+            # Determine direction based on accumulated delta
+            direction = 1 if self._zoom_accumulator > 0 else -1
+            
+            # Reset accumulator after a zoom change
+            self._zoom_accumulator = 0
+            
+            new_idx = max(0, min(len(values)-1, curr_idx + direction))
+            
+            if new_idx != curr_idx:
+                var.set(values[new_idx])
+                if update_func:
+                    update_func()
+        except Exception:
+            pass
+
+    def on_frame_click(self, event, frame_index):
+        """Handle frame click with Ctrl+Click support for multi-selection in the compact editor"""
+        # In small preview mode, select the color at the clicked pixel instead of the frame
+        if getattr(self, 'view_mode', '') == "small_preview":
+            self._select_color_from_frame_click(event, frame_index)
+            return
+        
+        # User requested to remove frame selection entirely from Left Click.
+        # Selection is handled by Right Click context menu.
+        pass
+    
+    def _select_color_from_frame_click(self, event, frame_index):
+        """Select the palette color at the clicked pixel location in small preview mode"""
+        try:
+            if not hasattr(self, 'current_character') or not self.current_character:
+                return
+            
+            if self.current_character not in self.character_images:
+                return
+            
+            images = self.character_images[self.current_character]
+            if not images or frame_index >= len(images):
+                return
+            
+            # Load the original image to get pixel data
+            original_img_path = images[frame_index]
+            original_img = Image.open(original_img_path).convert("P")
+            img_width, img_height = original_img.size
+            
+            # Get the image item on the canvas
+            # We tagged it with "frame_{frame_index}"
+            tag = f"frame_{frame_index}"
+            bbox = self.canvas.bbox(tag)
+            
+            if not bbox:
+                return
+                
+            x1, y1, x2, y2 = bbox
+            
+            # Get click coordinates relative to the CANVAS (accounting for scroll)
+            canvas_click_x = self.canvas.canvasx(event.x)
+            canvas_click_y = self.canvas.canvasy(event.y)
+            
+            # Calculate coordinates relative to the image top-left
+            rel_x = canvas_click_x - x1
+            rel_y = canvas_click_y - y1
+            
+            # Calculate scale based on displayed size vs original size
+            current_w = x2 - x1
+            current_h = y2 - y1
+            
+            scale_x = current_w / img_width if img_width > 0 else 1.0
+            scale_y = current_h / img_height if img_height > 0 else 1.0
+            
+            # Convert to original image coordinates
+            original_x = int(rel_x / scale_x)
+            original_y = int(rel_y / scale_y)
+            
+            # Ensure coordinates are within image bounds
+            if 0 <= original_x < img_width and 0 <= original_y < img_height:
+                # Get the palette index at this pixel
+                pixel_index = original_img.getpixel((original_x, original_y))
+                
+                # Identify and switch to the layer for this pixel
+                found_layer = self._find_layer_by_pixel_index(pixel_index)
+                if found_layer:
+                    self._compact_active_layer = found_layer
+                    self.last_selected_palette = found_layer.name
+                    # Update Compact Editor UI (refresh swatches)
+                    if hasattr(self, 'update_compact_palette_editor'):
+                        self.update_compact_palette_editor()
+
+                # Check if we have a compact active layer and if this index is editable
+                if hasattr(self, '_compact_active_layer') and self._compact_active_layer:
+                    # Get editable indices for the current layer
+                    char_num = self.current_character.replace("chr", "")
+                    palette_type = getattr(self._compact_active_layer, 'palette_type', '')
+                    
+                    editable_indices = self._get_editable_color_indices(self._compact_active_layer)
+                    
+                    if pixel_index in editable_indices:
+                        # Select this color in the compact editor
+                        if not hasattr(self, 'compact_selected_colors'):
+                            self.compact_selected_colors = set()
+                        
+                        # Check if multiselect is enabled OR Ctrl is pressed
+                        multiselect = getattr(self, 'compact_multiselect_var', None)
+                        ctrl_pressed = (event.state & 0x4) != 0
+                        
+                        if (multiselect and multiselect.get()) or ctrl_pressed:
+                            # Toggle selection
+                            if pixel_index in self.compact_selected_colors:
+                                self.compact_selected_colors.remove(pixel_index)
+                                if pixel_index in self.compact_base_colors:
+                                    del self.compact_base_colors[pixel_index]
+                            else:
+                                self.compact_selected_colors.add(pixel_index)
+                                # Store base color for this index
+                                if pixel_index < len(self._compact_active_layer.colors):
+                                    self.compact_base_colors[pixel_index] = self._compact_active_layer.colors[pixel_index]
+                        else:
+                            # Single selection - clear previous and select this one
+                            self.compact_selected_colors.clear()
+                            self.compact_base_colors.clear()
+                            self.compact_selected_colors.add(pixel_index)
+                            # Store base color for this index
+                            if pixel_index < len(self._compact_active_layer.colors):
+                                self.compact_base_colors[pixel_index] = self._compact_active_layer.colors[pixel_index]
+                        
+                        # Reset sliders to 0
+                        if hasattr(self, 'compact_hue_var'):
+                            self.compact_hue_var.set(0)
+                            self.compact_sat_var.set(0)
+                            self.compact_val_var.set(0)
+                        
+                        # Update the UI highlights
+                        if hasattr(self, '_update_compact_swatch_highlights'):
+                            self._update_compact_swatch_highlights()
+                        
+        except Exception as e:
+            # Silently fail - don't disrupt the user experience
+            pass
+    
+    def start_resize_active_colors(self, event):
+        """Start resizing the active colors section"""
+        self._resize_last_y = event.y_root
+        self._is_resizing = True
+    
+    def resize_active_colors(self, event):
+        """Resize the active colors section"""
+        if not hasattr(self, '_is_resizing') or not self._is_resizing:
+            return
+        
+        # Calculate the incremental change from last position
+        # Dragging UP (decreasing y_root) = negative delta = increase height
+        # Dragging DOWN (increasing y_root) = positive delta = decrease height
+        delta_y = event.y_root - self._resize_last_y
+        self._resize_last_y = event.y_root  # Update for next iteration
+        
+        # Get maximum height (default to 250 if not set)
+        max_height = getattr(self, 'active_colors_max_height', 250)
+        
+        # Update active colors height incrementally (subtract delta for intuitive behavior)
+        # Constrained to prevent overlaying main buttons
+        new_height = max(50, min(max_height, self.active_colors_height - delta_y))  # Min 50px, max from setting
+        
+        # Only update if height actually changed
+        if new_height != self.active_colors_height:
+            self.active_colors_height = new_height
+            self.active_colors_frame.config(height=new_height)
+            
+            # Force the compact control bar to stay visible and update layout
+            if hasattr(self, 'compact_control_bar') and self.compact_control_bar.winfo_ismapped():
+                self.compact_control_bar.update_idletasks()
+    
+    def end_resize_active_colors(self, event):
+        """End resizing the active colors section"""
+        self._is_resizing = False
+        if hasattr(self, '_resize_last_y'):
+            del self._resize_last_y
+
+
+
+
+    def _show_frame_context_menu(self, event, frame_idx):
+        """Show context menu for frame"""
+        menu = tk.Menu(self.master, tearoff=0)
+        
+        # Select Frame
+        menu.add_command(label="Set as Current Frame", 
+                        command=lambda: self._select_frame_context(frame_idx))
+        
+        # Switch to Single Preview
+        menu.add_command(label="Switch to Single Preview", 
+                        command=lambda: self._switch_to_single_preview(frame_idx))
+        
+        # Hide Frame
+        menu.add_command(label="Hide Selected Frame", 
+                        command=lambda: self._hide_frame_context(frame_idx))
+        
+        # View as Singular Frame (Requested feature)
+        menu.add_command(label="View as Singular Frame", 
+                        command=lambda: self._switch_to_single_preview(frame_idx))
+        
+        menu.tk_popup(event.x_root, event.y_root)
+        
+    def _select_frame_context(self, frame_idx):
+        """Select the frame from context menu"""
+        self.current_image_index = frame_idx
+        # Select in grid if applicable
+        self.selected_frame = frame_idx
+        self.selected_frames = {frame_idx}
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+            
+    def _switch_to_single_preview(self, frame_idx):
+        """Switch to single preview mode for the selected frame"""
+        self.current_image_index = frame_idx
+        self.selected_frame = frame_idx
+        self.preview_var.set("single")
+        
+        # Use update_image_display to refresh the view
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
+            
+    def _hide_frame_context(self, frame_idx):
+        """Hide the selected frame"""
+        char_job_key = self._get_char_job_key()
+        if not char_job_key:
+            return
+            
+        if char_job_key not in self.hidden_frames:
+            self.hidden_frames[char_job_key] = set()
+            
+        self.hidden_frames[char_job_key].add(frame_idx)
+        self._save_frame_visibility_state()
+        
+        # Refresh display
+        if hasattr(self, 'update_image_display'):
+            self.update_image_display()
 
 if __name__ == "__main__":
     root = tk.Tk()
