@@ -1,8 +1,8 @@
 {
     "global": {
-        "use_bmp_export": true,
-        "use_portrait_export": true,
-        "cute_bg_option": "both",
+        "use_bmp_export": false,
+        "use_portrait_export": false,
+        "cute_bg_option": "no_cute_bg",
         "palette_format": "png",
         "show_frame_labels": true,
         "use_right_click": true,
@@ -10,7 +10,7 @@
         "show_export_palette_button": false,
         "show_dev_buttons": false,
         "use_quick_export": false,
-        "zoom_level": "100%",
+        "zoom_level": "200%",
         "background_color": [
             255,
             255,
@@ -20,10 +20,209 @@
         "dont_show_all_mode_warning": false,
         "dont_show_50_frames_warning": false,
         "show_frame_options": true,
-        "last_character": "chr001",
-        "last_job": "1st Job",
+        "last_character": "chr018",
+        "last_job": "3rd Job",
         "last_frame": 0,
-        "last_preview_mode": "single"
+        "last_preview_mode": "custom"
     },
-    "per_character": {}
+    "per_character": {
+        "chr001": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE",
+                    "fashion_4": "NONE",
+                    "fashion_5": "NONE"
+                }
+            }
+        },
+        "chr008": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE"
+                }
+            }
+        },
+        "chr024": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\3rd_default_fashion\\chr024\\job032.pal",
+                "fashion": {
+                    "fashion_1": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr024_w03.pal",
+                    "fashion_2": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr024_w13.pal",
+                    "fashion_3": "NONE",
+                    "fashion_4": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr024_w30.pal",
+                    "fashion_5": "NONE"
+                }
+            }
+        },
+        "chr007": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE",
+                    "fashion_4": "NONE",
+                    "fashion_5": "NONE",
+                    "fashion_6": "NONE"
+                }
+            }
+        },
+        "chr023": {
+            "custom_frame_count": 3,
+            "custom_start_index": 27,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 41,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\3rd_default_fashion\\chr023\\job030.pal",
+                "fashion": {
+                    "fashion_1": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr023_w03.pal",
+                    "fashion_2": "NONE",
+                    "fashion_3": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\exports\\custom_pals\\fashion\\chr023_w233.pal",
+                    "fashion_4": "NONE"
+                }
+            }
+        },
+        "chr004": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE",
+                    "fashion_4": "NONE",
+                    "fashion_5": "NONE"
+                }
+            }
+        },
+        "chr020": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\3rd_default_fashion\\chr020\\job024.pal",
+                "fashion": {
+                    "fashion_1": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr020_w02.pal",
+                    "fashion_2": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr020_w12.pal",
+                    "fashion_3": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr020_w20.pal",
+                    "fashion_4": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr020_w32.pal",
+                    "fashion_5": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr020_w42.pal"
+                }
+            }
+        },
+        "chr002": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE",
+                    "fashion_4": "NONE",
+                    "fashion_5": "NONE",
+                    "fashion_6": "NONE"
+                }
+            }
+        },
+        "chr018": {
+            "custom_frame_count": 1,
+            "custom_start_index": 219,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\3rd_default_fashion\\chr018\\job019.pal",
+                "fashion": {
+                    "fashion_1": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr018_w00.pal",
+                    "fashion_2": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\exports\\custom_pals\\fashion\\chr018_w73.pal",
+                    "fashion_3": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\exports\\custom_pals\\fashion\\chr018_w132.pal",
+                    "fashion_4": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\exports\\custom_pals\\fashion\\chr018_w92.pal",
+                    "fashion_5": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\exports\\custom_pals\\fashion\\chr018_w102.pal"
+                }
+            }
+        },
+        "chr003": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "",
+                "fashion": {
+                    "fashion_1": "NONE",
+                    "fashion_2": "NONE",
+                    "fashion_3": "NONE",
+                    "fashion_4": "NONE",
+                    "fashion_5": "NONE",
+                    "fashion_6": "NONE"
+                }
+            }
+        },
+        "chr006": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {
+                    "fashion_1": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w05.pal",
+                    "fashion_2": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w10.pal",
+                    "fashion_3": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w22.pal",
+                    "fashion_4": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w34.pal",
+                    "fashion_5": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w46.pal"
+                }
+            }
+        }
+    }
 }

@@ -142,7 +142,7 @@ CHARACTER_RANGES = {
         "fashion_2": [range(116, 149)],  # Protector: 116-148
         "fashion_3": [range(150, 174)],  # Kilt: 150-173
         "fashion_4": [range(176, 181)],  # Steel Armlets: 176-180
-        "fashion_5": [range(187, 205)],  # Ankle Shoes: 187-204
+        "fashion_5": [range(181, 184), range(187, 205)],  # Ankle Shoes: 181-183, 187-204
         "3rd_job_base": [range(111, 205)],  # 3rd job base fashion
         "hair": [range(208, 231)],  # Hair palettes
     },
@@ -190,8 +190,7 @@ CHARACTER_RANGES = {
         "fashion_2": [range(134, 149)],  # Opera Cape: 134-148
         "fashion_3": [range(150, 165)],  # Frock Coat: 150-164
         "fashion_4": [range(166, 174)],  # Dress Pants: 166-173
-        "fashion_5": [range(1, 34), range(111, 131), range(134, 149), range(150, 165), range(166, 174), range(176, 182), range(208, 219)],  # Formal Shoes (was Full Suit)
-        "fashion_6": [range(176, 182)],  # Unknown (was Formal Shoes)
+        "fashion_5": [range(176, 182)],  # Formal Shoes
         "hair": [range(208, 226)],  # Hair palettes
     },
     "025": {  # Same as 100

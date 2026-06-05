@@ -1,25 +1,114 @@
 {
     "live_palette_files_edited": [],
-    "live_palette_files_saved": [],
+    "live_palette_files_saved": [
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w2333.pal",
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w233.pal"
+    ],
     "icons_edited": [],
     "icons_saved": [],
-    "frames_previewed": 0,
-    "frames_skipped": 0,
-    "start_time": 0.0,
-    "character_edits": {},
+    "frames_previewed": 64,
+    "frames_skipped": 370,
+    "total_time_spent": 7913.843499183655,
+    "character_edits": {
+        "chr001_1st Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr008_1st Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr024_3rd Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr007_1st Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr023_3rd Job": {
+            "views": 8,
+            "edits": 0,
+            "palette_saves": 2,
+            "exports": 0
+        },
+        "chr004_1st Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr020_3rd Job": {
+            "views": 18,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr002_1st Job": {
+            "views": 3,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr018_3rd Job": {
+            "views": 25,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr003_1st Job": {
+            "views": 2,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr006_1st Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        }
+    },
     "exported_frames": 0,
     "exported_backgrounds": 0,
     "exported_palettes": {},
     "colors_saved": 0,
     "indexes_changed": 0,
-    "indexes_selected": 0,
-    "indexes_saved_in_pals": 0,
+    "indexes_selected": 96,
+    "indexes_saved_in_pals": 512,
     "colors_saved_in_json": 0,
     "preview_indexes_selected": {
-        "live_pal": 0,
+        "live_pal": 96,
         "live_icon": 0
     },
-    "palettes_previewed": 0,
-    "unique_indexes_modified": [],
-    "total_index_modifications": 0
+    "palettes_previewed": 1090,
+    "unique_indexes_modified": [
+        160,
+        129,
+        0,
+        133,
+        166,
+        134,
+        135,
+        136,
+        202,
+        171,
+        204,
+        150,
+        151,
+        152,
+        183,
+        154,
+        187,
+        157
+    ],
+    "total_index_modifications": 43
 }

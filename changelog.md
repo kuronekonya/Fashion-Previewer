@@ -836,3 +836,20 @@
 
 This will hopefully be the last update for a while, I'm pretty happy with where the program is at now.
 It would be really cool if it did the XML too, but I don't think I'm going to do that update.
+
+# 4.3 - I'm Back, Back Again
+
+- Added a quick export button to BULK export icons and a portrait for your fashion set
+- Added a tooltip on the Live Pal Editor that says you can click to select the index
+- Added another Debug Menu for the Current Display Information for quick editing ease
+- Combined menu buttons into easy-to-understand 
+- Fixed some of the icons being fragmented (thank you Arketual!)
+- Fixed the arrow keys not working with the preview
+- Fixed weird preview in the Live Preview with inverted colors
+- Fixed some icons not properly exporting
+- Fixed the weird changing frames issue
+- Fixed upcoming depreciation warnings
+- Fixed Icon Translator for Cat First Job
+- Fixed a few weird dx msgs
+- Fixed BG Choice being overritten every time the program started up
+- Moved Big Picture Mode button to the bottom right

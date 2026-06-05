@@ -1,6 +1,6 @@
-# Fashion Previewer v4.2
+# Fashion Previewer v4.3
 
-A Python application for previewing and customizing character fashion using palette files, specifically for usage for Trickster Online private server development.
+A Python application for previewing and customizing character fashion using palette files.
 Now including Linux Support!
 
 ## Credits
@@ -9,6 +9,7 @@ This was made possible by the following players:
 - KusanagiKyo
 - Dino
 - Yuki
+- Arketual
 - Mewsie
 
 Thank you for your hard work and contributions to bring this tool to life for the community!!!

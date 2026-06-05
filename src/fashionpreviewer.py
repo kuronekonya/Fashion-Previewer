@@ -125,17 +125,7 @@ class CustomPreviewDialog:
         tk.Radiobutton(palette_frame, text="PNG Grid", variable=self.palette_format_var,
                       value="png").pack(side="left", padx=10, pady=2)
         
-        # Add checkbox to control Export Palette button visibility
-        # Get initial value from parent if available
-        initial_show_button = False
-        if isinstance(parent, PaletteTool):
-            initial_show_button = parent.show_export_palette_button
-        
-        self.show_export_button_var = tk.BooleanVar(value=initial_show_button)
-        self.show_export_checkbox = tk.Checkbutton(palette_frame, text="Show Button", 
-                                                    variable=self.show_export_button_var,
-                                                    command=self.toggle_export_button)
-        self.show_export_checkbox.pack(side="left", padx=10, pady=2)
+        # (Removed Export Palette button visibility toggle as per UI revamp)
         
         # Initialize variables
         self.format_var = tk.BooleanVar(value=self.use_bmp)
@@ -309,20 +299,7 @@ class CustomPreviewDialog:
         self.palette_format_var.trace_add("write", update_parent_settings)
         self.user_choice_var.trace_add("write", update_parent_settings)
         
-        # Show Dev Buttons checkbox
-        dev_buttons_frame = tk.Frame(main_frame)
-        dev_buttons_frame.pack(fill="x", pady=(5, 0))
-        
-        # Get initial value from parent if available
-        initial_show_dev = False
-        if isinstance(parent, PaletteTool):
-            initial_show_dev = parent.show_dev_buttons
-        
-        self.show_dev_buttons_var = tk.BooleanVar(value=initial_show_dev)
-        self.show_dev_buttons_checkbox = tk.Checkbutton(dev_buttons_frame, text="Show Dev Buttons", 
-                                                        variable=self.show_dev_buttons_var,
-                                                        command=self.toggle_dev_buttons)
-        self.show_dev_buttons_checkbox.pack(anchor="center")
+        # (Removed Show Dev Buttons checkbox as per UI revamp)
         
         # Excess Colors Prompt checkbox
         excess_colors_frame = tk.Frame(main_frame)
@@ -376,10 +353,6 @@ class CustomPreviewDialog:
         # Center the dialog after all content is created
         self.dialog.update_idletasks()
         self._center_dialog_on_parent()
-        
-        # Apply initial button visibility based on checkbox states
-        self.toggle_export_button()
-        self.toggle_dev_buttons()
         
         # Bind Enter key to OK
         self.dialog.bind("<Return>", lambda e: self.ok_clicked())
@@ -453,26 +426,7 @@ class CustomPreviewDialog:
         if not self.portrait_var.get():
             self.cute_bg_var.set("no_cute_bg")  # Reset to default when disabled
     
-    def toggle_export_button(self):
-        """Toggle visibility of Export Palette button in parent PaletteTool"""
-        if isinstance(self.parent, PaletteTool):
-            if self.show_export_button_var.get():
-                # Insert before Live Edit Palette button to maintain order
-                self.parent.export_palette_button.pack(side="left", padx=(0, 5), before=self.parent.live_edit_button)
-            else:
-                self.parent.export_palette_button.pack_forget()
-    
-    def toggle_dev_buttons(self):
-        """Toggle visibility of dev buttons (Export All Frames, Debug Info) in parent PaletteTool"""
-        if isinstance(self.parent, PaletteTool):
-            if self.show_dev_buttons_var.get():
-                # Show Export All Frames button (insert before Export Palette or Live Edit button)
-                self.parent.export_all_frames_button.pack(side="left", padx=(0, 5), before=self.parent.live_edit_button)
-                # Show Debug Info button (insert before Statistics button)
-                self.parent.debug_info_button.pack(side="left", padx=(0, 5), before=self.parent.statistics_button)
-            else:
-                self.parent.export_all_frames_button.pack_forget()
-                self.parent.debug_info_button.pack_forget()
+
     
     def toggle_frame_choice(self):
         """Toggle visibility of frame choice entry"""
@@ -496,9 +450,7 @@ class CustomPreviewDialog:
         self.labels_var.set(True)
         self.user_choice_var.set(False)
         self.palette_format_var.set("png")
-        self.show_export_button_var.set(False)
         self.live_pal_ui_var.set("Advanced")
-        self.show_dev_buttons_var.set(False)
         self.show_excess_colors_prompt_var.set(True)
         
         # Update parent settings immediately (live sync)
@@ -509,9 +461,8 @@ class CustomPreviewDialog:
             self.parent.show_frame_labels = True
             self.parent.use_frame_choice = False
             self.parent.palette_format = "png"
-            self.parent.show_export_palette_button = False
+
             self.parent.live_pal_ui_mode = "Advanced"
-            self.parent.show_dev_buttons = False
             self.parent.dont_show_excess_colors_prompt = False
             
             # Update UI elements in parent
@@ -520,8 +471,6 @@ class CustomPreviewDialog:
         
         # Refresh dialog UI elements
         self.validate_inputs()
-        self.toggle_export_button()
-        self.toggle_dev_buttons()
         self.toggle_frame_choice()
         self.update_bg_style_state()
         
@@ -635,8 +584,6 @@ class CustomPreviewDialog:
                 self.parent.show_frame_labels = self.labels_var.get()
                 self.parent.use_frame_choice = self.user_choice_var.get()
                 self.parent.live_pal_ui_mode = self.live_pal_ui_var.get()  # Update live pal editor UI mode
-                self.parent.show_export_palette_button = self.show_export_button_var.get()  # Save checkbox state
-                self.parent.show_dev_buttons = self.show_dev_buttons_var.get()  # Save checkbox state
                 # Update excess colors prompt setting (invert because setting is "dont_show")
                 self.parent.dont_show_excess_colors_prompt = not self.show_excess_colors_prompt_var.get()
                 if self.user_choice_var.get():
@@ -656,7 +603,6 @@ class CustomPreviewDialog:
             self.result = (frames, start_frame, end_frame, self.format_var.get(), self.labels_var.get(), 
                          self.portrait_var.get(), self.user_choice_var.get(), chosen_frame,
                          self.palette_format_var.get(), self.cute_bg_var.get(), self.live_pal_ui_var.get(),
-                         self.show_export_button_var.get(), self.show_dev_buttons_var.get(), 
                          self.show_excess_colors_prompt_var.get())
             if close:
                 self.dialog.destroy()
@@ -1391,8 +1337,6 @@ class PaletteTool:
                 self.show_frame_labels = global_settings.get('show_frame_labels', True)
                 self.use_right_click = global_settings.get('use_right_click', True)
                 self.live_pal_ui_mode = global_settings.get('live_pal_ui_mode', "Simple")
-                self.show_export_palette_button = global_settings.get('show_export_palette_button', False)
-                self.show_dev_buttons = global_settings.get('show_dev_buttons', False)
                 self.use_quick_export = global_settings.get('use_quick_export', False)
                 self.zoom_level = global_settings.get('zoom_level', "100%")
                 self.dont_show_excess_colors_prompt = global_settings.get('dont_show_excess_colors_prompt', False)
@@ -1401,9 +1345,17 @@ class PaletteTool:
                 # Initialize session-only settings (cleared when program closes)
                 self.session_dont_show_excess_colors_prompt = False
                 
-                # Load background color (convert list back to tuple)
+                # Load background color robustly
                 bg_color = global_settings.get('background_color', [255, 255, 255])
-                self.background_color = tuple(bg_color) if isinstance(bg_color, list) else (255, 255, 255)
+                if isinstance(bg_color, (list, tuple)) and len(bg_color) >= 3:
+                    self.background_color = tuple(int(c) for c in bg_color[:3])
+                elif isinstance(bg_color, str) and bg_color.startswith('#') and len(bg_color) == 7:
+                    try:
+                        self.background_color = (int(bg_color[1:3], 16), int(bg_color[3:5], 16), int(bg_color[5:7], 16))
+                    except ValueError:
+                        self.background_color = (255, 255, 255)
+                else:
+                    self.background_color = (255, 255, 255)
                 
                 # Load session state (last used character, frame, preview)
                 self.last_character = global_settings.get('last_character', None)
@@ -1465,8 +1417,6 @@ class PaletteTool:
                 'show_frame_labels': self.show_frame_labels,
                 'use_right_click': self.use_right_click,
                 'live_pal_ui_mode': self.live_pal_ui_mode,
-                'show_export_palette_button': self.show_export_palette_button,
-                'show_dev_buttons': self.show_dev_buttons,
                 'use_quick_export': self.use_quick_export,
                 'zoom_level': self.zoom_var.get() if hasattr(self, 'zoom_var') else "100%",
                 'background_color': list(self.background_color),
@@ -1728,8 +1678,7 @@ class PaletteTool:
         self.colorpicker_active = False  # Track colorpicker mode for simple palette editor
         
         # UI button visibility settings
-        self.show_export_palette_button = False  # Show Button checkbox state
-        self.show_dev_buttons = False  # Show Dev Buttons checkbox state
+
         
         # Load settings from file (will override defaults)
         self.hidden_frames = {}
@@ -1972,69 +1921,32 @@ class PaletteTool:
     
     def _is_keyed_color(self, rgb_color, palette_index=None):
         """Check if an RGB color is a keyed/transparency color that should be avoided"""
-        r, g, b = rgb_color
-        
-        # Universal keying colors
-        if self.is_universal_keying_color(rgb_color):
+        # Only pure green and pure magenta are universally avoided now
+        if rgb_color == (0, 255, 0) or rgb_color == (255, 0, 255):
             return True
-        
-        # Magenta (chroma key)
-        if rgb_color == (255, 0, 255):
-            return True
-        
-        # Black is generally allowed ("Never make black transparent")
-        # Exception: chr004 specifically treats black as keyed
-        if rgb_color == (0, 0, 0):
-            if hasattr(self, 'current_character') and self.current_character:
-                char_num = self.current_character[3:]  # Extract number from chr###
-                if char_num == "004":
-                    return True  # Black is keyed for chr004
-            # Black is allowed for all other characters
-            return False
-        
         return False
     
     def _find_nearest_non_keyed_color(self, target_rgb, adjustment_direction='both'):
-        """Find the nearest non-keyed color by adjusting RGB values"""
-        r, g, b = target_rgb
-        
-        # If the color is not keyed, return it as-is
+        """Find the nearest non-keyed color by adjusting HSV values"""
         if not self._is_keyed_color(target_rgb):
             return target_rgb
+            
+        import colorsys
+        r, g, b = target_rgb
+        h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
         
-        # Try different adjustment strategies
-        for offset in range(1, 20):  # Try up to 20 units of adjustment
-            candidates = []
-            
-            if adjustment_direction in ['both', 'up']:
-                # Try increasing values
-                candidates.extend([
-                    (min(255, r + offset), g, b),
-                    (r, min(255, g + offset), b),
-                    (r, g, min(255, b + offset)),
-                    (min(255, r + offset), min(255, g + offset), b),
-                    (min(255, r + offset), g, min(255, b + offset)),
-                    (r, min(255, g + offset), min(255, b + offset)),
-                ])
-            
-            if adjustment_direction in ['both', 'down']:
-                # Try decreasing values
-                candidates.extend([
-                    (max(0, r - offset), g, b),
-                    (r, max(0, g - offset), b),
-                    (r, g, max(0, b - offset)),
-                    (max(0, r - offset), max(0, g - offset), b),
-                    (max(0, r - offset), g, max(0, b - offset)),
-                    (r, max(0, g - offset), max(0, b - offset)),
-                ])
-            
-            # Check each candidate
-            for candidate in candidates:
-                if not self._is_keyed_color(candidate):
-                    return candidate
-        
-        # If we can't find a good alternative, return a safe default
-        return (128, 128, 128)  # Gray as fallback
+        if adjustment_direction == 'up':
+            v = min(1.0, v + 0.02)
+        elif adjustment_direction == 'down':
+            v = max(0.0, v - 0.02)
+        else:
+            if v > 0.5:
+                v = max(0.0, v - 0.02)
+            else:
+                v = min(1.0, v + 0.02)
+                
+        nr, ng, nb = colorsys.hsv_to_rgb(h, s, v)
+        return (int(nr*255), int(ng*255), int(nb*255))
     
     def _get_char_job_key(self):
         """Get the character+job key for settings lookup (standardized to lowercase)"""
@@ -3320,10 +3232,7 @@ class PaletteTool:
         self.zoom_combo.pack(side="left", padx=(5, 10))
         self.zoom_combo.bind("<<ComboboxSelected>>", lambda e: self.on_zoom_change())
         
-        # View mode toggle button (Big Picture Mode / Small Preview Mode)
-        self.view_mode_button = tk.Button(top_frame, text="Big Picture Mode", 
-                                          command=self.toggle_view_mode, width=16)
-        self.view_mode_button.pack(side="left", padx=(0, 10))
+
         
         # Create a spacer frame to push preview section to the right
         spacer_frame = tk.Frame(top_frame)
@@ -3652,37 +3561,56 @@ class PaletteTool:
         self.next_btn = tk.Button(nav_frame, text="▶", command=self.next_image, width=3)
         self.next_btn.pack(side="left")
         
-        # Other buttons
-        # Export button removed as requested (moved to context menu)
-        # self.update_export_button_text()
-        self.export_all_frames_button = tk.Button(button_frame, text="Export All Frames", command=self.export_all_frames)
-        self.export_all_frames_button.pack_forget()  # Hidden by default
-        self.export_palette_button = tk.Button(button_frame, text="Export Palette", command=self.export_pal)
-        self.export_palette_button.pack_forget()  # Hidden by default
-        self.live_edit_button = tk.Button(button_frame, text="Live Edit Palette", command=self.open_live_palette_editor)
-        self.live_edit_button.pack(side="left", padx=(0, 5))
-        self.icon_editor_button = tk.Button(button_frame, text="Icon Editor", command=self._open_icon_editor)
-        self.icon_editor_button.pack(side="left", padx=(0, 5))
-        tk.Button(button_frame, text="Reset Pals", command=self.reset_pals).pack(side="left", padx=(0, 5))
-        tk.Button(button_frame, text="Reset Frames", command=self.reset_frames).pack(side="left", padx=(0, 5))
-        self.debug_info_button = tk.Button(button_frame, text="Debug Info", command=self.debug_info)
-        self.debug_info_button.pack_forget()  # Hidden by default
-        self.statistics_button = tk.Button(button_frame, text="Statistics", command=self.show_statistics)
-        self.statistics_button.pack(side="left", padx=(0, 5))
+        # Edit Drop-up
+        self.edit_btn = tk.Menubutton(button_frame, text="Edit ^", relief="raised", direction="above")
+        self.edit_menu = tk.Menu(self.edit_btn, tearoff=0)
+        self.edit_btn.configure(menu=self.edit_menu)
+        self.edit_menu.add_command(label="Live Pal Editor", command=self.open_live_palette_editor)
+        self.edit_menu.add_command(label="Icon Editor", command=self._open_icon_editor)
+        self.edit_btn.pack(side="left", padx=(0, 5))
+
+        # Export Drop-up
+        self.export_btn = tk.Menubutton(button_frame, text="Export ^", relief="raised", direction="above")
+        self.export_menu = tk.Menu(self.export_btn, tearoff=0)
+        self.export_btn.configure(menu=self.export_menu)
+        self.export_menu.add_command(label="All Frames", command=self.export_all_frames)
+        self.export_menu.add_command(label="Quick Export", command=self.bulk_export_visuals)
+        self.export_btn.pack(side="left", padx=(0, 5))
+
+        # Reset Drop-up
+        self.reset_btn = tk.Menubutton(button_frame, text="Reset ^", relief="raised", direction="above")
+        self.reset_menu = tk.Menu(self.reset_btn, tearoff=0)
+        self.reset_btn.configure(menu=self.reset_menu)
+        self.reset_menu.add_command(label="Reset Frames", command=self.reset_frames)
+        self.reset_menu.add_command(label="Reset Pals", command=self.reset_pals)
+        self.reset_btn.pack(side="left", padx=(0, 5))
+
+        # Debug Drop-up
+        self.debug_btn = tk.Menubutton(button_frame, text="Debug ^", relief="raised", direction="above")
+        self.debug_menu = tk.Menu(self.debug_btn, tearoff=0)
+        self.debug_btn.configure(menu=self.debug_menu)
+        self.debug_menu.add_command(label="Statistics", command=self.show_statistics)
+        self.debug_menu.add_command(label="Debug Info", command=self.debug_info)
+        self.debug_menu.add_command(label="Current Display Info", command=self.show_current_display_info)
+        self.debug_btn.pack(side="left", padx=(0, 5))
         
         # Background color picker (right side of button bar)
         bg_color_frame = tk.Frame(button_frame)
         bg_color_frame.pack(side="right", padx=(5, 0))
+        
+        # View mode toggle button (Big Picture Mode / Small Preview Mode)
+        self.view_mode_button = tk.Button(button_frame, text="Big Picture Mode", 
+                                          command=self.toggle_view_mode, width=16)
+        self.view_mode_button.pack(side="right", padx=(5, 10))
         
         tk.Label(bg_color_frame, text="BG:").pack(side="left")
         self.bg_color_button = tk.Button(bg_color_frame, text="🎨", font=("Arial", 12), 
                                         command=self.pick_background_color, width=3, height=1)
         self.bg_color_button.pack(side="left", padx=(2, 0))
         
-        # Initialize background color (default white)
-        self.background_color = (255, 255, 255)
-        # Set initial button color
-        self.bg_color_button.configure(bg="#FFFFFF")
+        # Set initial button color based on loaded settings
+        hex_color = f"#{self.background_color[0]:02x}{self.background_color[1]:02x}{self.background_color[2]:02x}"
+        self.bg_color_button.configure(bg=hex_color)
         
         # Bind arrow keys for image navigation
         def on_arrow_key(event):
@@ -4448,8 +4376,7 @@ class PaletteTool:
                 "fashion_2": "Opera Cape",
                 "fashion_3": "Frock Coat",
                 "fashion_4": "Dress Pants",
-                "fashion_5": "Formal Shoes",
-                "fashion_6": "Unknown"
+                "fashion_5": "Formal Shoes"
             },
             "025": {  # chr025 (Paula 1st Job)
                 "fashion_1": "Stadium Jacket",
@@ -4565,23 +4492,8 @@ class PaletteTool:
                 fashion_num = int(char_match.group(2)) if char_match else 0
                 
                 # Sort by palette type first, then by fashion number
-                # For chr024, put fashion_5 (Full Suit) last
-                if char_num == "024":
-                    if palette_type == "fashion_1":
-                        return (1, fashion_num)
-                    elif palette_type == "fashion_2":
-                        return (2, fashion_num)
-                    elif palette_type == "fashion_3":
-                        return (3, fashion_num)
-                    elif palette_type == "fashion_4":
-                        return (4, fashion_num)
-                    elif palette_type == "fashion_6":
-                        return (6, fashion_num)  # Unknown (was Full Suit/Formal Shoes mixup)
-                    elif palette_type == "fashion_5":
-                        return (5, fashion_num)  # Formal Shoes (was Full Suit range)
-                    else:
-                        return (99, fashion_num)  # Unknown types go last
-                else:
+                # Normal sorting for all characters
+                if True:
                     # Normal sorting for other characters
                     if palette_type == "fashion_1":
                         return (1, fashion_num)
@@ -4816,6 +4728,24 @@ class PaletteTool:
             messagebox.showerror("Error", f"Failed to load palette {file_path}: {e}")
             return None
 
+    def _flatten_palette(self, palette):
+        """Safely flatten a palette into exactly 768 integers for Pillow's putpalette.
+        This prevents C-extension crashes when palettes have incorrect lengths or types."""
+        flat = []
+        for c in palette:
+            if isinstance(c, (list, tuple)) and len(c) >= 3:
+                try:
+                    flat.extend([int(c[0]), int(c[1]), int(c[2])])
+                except (ValueError, TypeError):
+                    flat.extend([0, 0, 0])
+            else:
+                flat.extend([0, 0, 0])
+        
+        flat = flat[:768]
+        while len(flat) < 768:
+            flat.append(0)
+        return flat
+
     def load_character_image(self):
         """Load the current character's image based on current_image_index"""
         if not hasattr(self, 'current_character') or not self.current_character:
@@ -5010,18 +4940,10 @@ class PaletteTool:
         self.master.wait_window(dialog.dialog)
         
         if dialog.result is not None:
-            # Handle both old and new result tuple formats for backward compatibility
-            if len(dialog.result) >= 14:
-                frame_count, start_frame, end_frame, use_bmp, show_labels, use_portrait, use_choice, chosen_frame, palette_format, cute_bg, live_pal_ui, show_export_pal, show_dev, show_excess_prompt = dialog.result
+            if len(dialog.result) == 12:
+                frame_count, start_frame, end_frame, use_bmp, show_labels, use_portrait, use_choice, chosen_frame, palette_format, cute_bg, live_pal_ui, show_excess_prompt = dialog.result
                 self.live_pal_ui_mode = live_pal_ui
-                self.show_export_palette_button = show_export_pal
-                self.show_dev_buttons = show_dev
                 self.dont_show_excess_colors_prompt = not show_excess_prompt  # Invert for storage
-            elif len(dialog.result) >= 13:
-                frame_count, start_frame, end_frame, use_bmp, show_labels, use_portrait, use_choice, chosen_frame, palette_format, cute_bg, live_pal_ui, show_export_pal, show_dev = dialog.result
-                self.live_pal_ui_mode = live_pal_ui
-                self.show_export_palette_button = show_export_pal
-                self.show_dev_buttons = show_dev
             elif len(dialog.result) >= 11:
                 frame_count, start_frame, end_frame, use_bmp, show_labels, use_portrait, use_choice, chosen_frame, palette_format, cute_bg, live_pal_ui = dialog.result
                 self.live_pal_ui_mode = live_pal_ui
@@ -5250,7 +5172,6 @@ class PaletteTool:
                         return
         
         if preview_mode == "single":
-            self.canvas.delete("all")
             self.update_single_frame_display()
         elif preview_mode == "all":
             self.update_all_frames_display()
@@ -5286,7 +5207,7 @@ class PaletteTool:
         display_img = Image.new("P", (w, h))
         
         # Apply the merged palette FIRST
-        display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
+        display_img.putpalette(self._flatten_palette(merged_palette))
         
         # THEN copy the pixel data from original image
         display_img.putdata(self.original_image.getdata())
@@ -5304,7 +5225,7 @@ class PaletteTool:
                 display_palette.append(color)
         
         # Apply the modified palette to the display image
-        display_img.putpalette([color for palette_color in display_palette for color in palette_color])
+        display_img.putpalette(self._flatten_palette(display_palette))
         
         # Convert to RGB for display
         rgb_img = display_img.convert("RGB")
@@ -5453,9 +5374,7 @@ class PaletteTool:
         self.canvas.bind("<Button-1>", on_canvas_click)
         
         # Force canvas update
-        self.canvas.update()
         self.canvas.update_idletasks()
-        self.master.update()
 
     def update_all_frames_display(self):
         """Update display for all frames mode"""
@@ -5471,9 +5390,6 @@ class PaletteTool:
         if not images:
             self.canvas.delete("all")
             return
-        
-        # Clear canvas
-        self.canvas.delete("all")
         
         # Get canvas dimensions - ensure canvas is updated first
         self.canvas.update_idletasks()
@@ -5569,7 +5485,7 @@ class PaletteTool:
                 # Create display image
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
-                display_img.putpalette([color for palette_color in result_palette for color in palette_color])
+                display_img.putpalette(self._flatten_palette(result_palette))
                 display_img.putdata(original_img.getdata())
                 
                 # Convert to RGBA and apply transparency
@@ -5758,7 +5674,14 @@ class PaletteTool:
                 current_y += row_height + image_spacing + 15  # Add space for text
             
             rows = positioned_items
-        
+            
+        # Clear canvas just before drawing to prevent strobing
+        self.canvas.delete("all")
+        if hasattr(self, 'all_frame_images'):
+            self.all_frame_images.clear()
+        else:
+            self.all_frame_images = []
+            
         for item in rows:
             if zoom_level == "Fit":
                 img_index, x_pos, y_pos, img_width, img_height = item
@@ -5828,9 +5751,7 @@ class PaletteTool:
         self.canvas.config(scrollregion=(0, 0, canvas_width, total_height))
         
         # Force canvas update to ensure display refreshes
-        self.canvas.update()
         self.canvas.update_idletasks()
-        self.master.update()
 
     def update_custom_frames_display(self):
         """Update display for custom frames mode"""
@@ -5894,15 +5815,6 @@ class PaletteTool:
             
         # Store the frame indices for reference
         self.custom_frames = list(visible_indices)
-        
-        # Clear canvas and previous image references
-        self.canvas.delete("all")
-        
-        # Clear previous custom frame images to prevent memory issues
-        if hasattr(self, 'custom_frame_images'):
-            self.custom_frame_images.clear()
-        else:
-            self.custom_frame_images = []
         
         # Get canvas dimensions - ensure canvas is updated first
         self.canvas.update_idletasks()
@@ -5995,7 +5907,7 @@ class PaletteTool:
                 # Create display image
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
-                display_img.putpalette([color for palette_color in result_palette for color in palette_color])
+                display_img.putpalette(self._flatten_palette(result_palette))
                 display_img.putdata(original_img.getdata())
                 
                 # Convert to RGBA and apply transparency
@@ -6191,6 +6103,13 @@ class PaletteTool:
                     current_y += 15
             
             rows = positioned_items
+            
+        # Clear canvas just before drawing to prevent strobing
+        self.canvas.delete("all")
+        if hasattr(self, 'custom_frame_images'):
+            self.custom_frame_images.clear()
+        else:
+            self.custom_frame_images = []
         
         # Create PhotoImage objects and place them
         for item in rows:
@@ -6257,9 +6176,7 @@ class PaletteTool:
         self.canvas.config(scrollregion=(0, 0, canvas_width, total_height))
         
         # Force canvas update to ensure display refreshes
-        self.canvas.update()
         self.canvas.update_idletasks()
-        self.master.update()
         
         # Update navigation buttons to ensure they're properly enabled
         self.update_navigation_buttons()
@@ -6428,15 +6345,27 @@ class PaletteTool:
         return "unknown"
 
     def determine_fashion_type_from_palette_content(self, filename, char_num=None):
-        """Determine fashion type by analyzing palette content"""
+        """Determine fashion type by analyzing palette content based strictly on CHARACTER_RANGES"""
         if not char_num:
             if hasattr(self, 'current_character') and self.current_character:
                 char_num = self.current_character[3:]  # Extract "001" from "chr001"
             else:
                 return "unknown"
+                
+        # For Paula characters, use the mapped character ID
+        palette_char_num = char_num
+        if char_num in ["025", "026", "027"]:
+            if char_num == "025":
+                palette_char_num = "100"
+            elif char_num == "026":
+                palette_char_num = "101"
+            elif char_num == "027":
+                palette_char_num = "102"
         
         # Load the palette file
         try:
+            from palette_ranges import CHARACTER_RANGES
+            
             # Try different possible paths for the palette file
             script_dir = os.path.dirname(os.path.abspath(__file__))
             root_dir = getattr(self, "root_dir", 
@@ -6466,286 +6395,41 @@ class PaletteTool:
             if not palette_data:
                 return "unknown"
             
-            # Use the provided character number for range lookup
+            char_ranges = CHARACTER_RANGES.get(palette_char_num, {})
+            if not char_ranges:
+                return "unknown"
+                
+            best_match = "unknown"
+            max_filled_percentage = 0.0
+            tied_matches = []
             
-            # For chr003, use the specific ranges provided
-            if char_num == "003":
-                # Define chr003 specific fashion ranges
-                chr003_ranges = {
-                    "fashion_1": [range(111, 125)],  # 111-124
-                    "fashion_2": [range(128, 135)],  # 128-134
-                    "fashion_3": [range(137, 144)],  # 137-143
-                    "fashion_4": [range(144, 154)],  # 144-153
-                    "fashion_5": [range(155, 160)],  # 155-159
-                    "fashion_6": [range(160, 175)]   # 160-174
-                }
-                
-                best_match = "unknown"
-                max_non_keying_colors = 0
-                
-                for fashion_type, ranges in chr003_ranges.items():
-                    # Count non-keying colors in this fashion type's ranges
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color for chr003
-                                if not self.is_chr003_keying_color(color):
-                                    non_keying_count += 1
+            for fashion_type, ranges in char_ranges.items():
+                if fashion_type == "hair" or fashion_type == "3rd_job_base":
+                    continue
                     
-                    # If this fashion type has more non-keying colors, it's likely the correct one
-                    if non_keying_count > max_non_keying_colors:
-                        max_non_keying_colors = non_keying_count
-                        best_match = fashion_type
-                
-                return best_match if max_non_keying_colors > 0 else "unknown"
-            # For chr008, use the specific ranges provided
-            elif char_num == "008":
-                # Define chr008 specific fashion ranges
-                chr008_ranges = {
-                    "fashion_1": [range(111, 134)],  # 111-133
-                    "fashion_2": [range(137, 144)],  # 137-143
-                    "fashion_3": [range(144, 151)]   # 144-150
-                }
-                
-                best_match = "unknown"
-                max_non_keying_colors = 0
-                
-                for fashion_type, ranges in chr008_ranges.items():
-                    # Count non-keying colors in this fashion type's ranges
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color for chr008
-                                if not self.is_chr008_keying_color(color):
-                                    non_keying_count += 1
-                    
-                    # If this fashion type has more non-keying colors, it's likely the correct one
-                    if non_keying_count > max_non_keying_colors:
-                        max_non_keying_colors = non_keying_count
-                        best_match = fashion_type
-                
-                return best_match if max_non_keying_colors > 0 else "unknown"
-            # For chr011, use the same keying logic as chr003 since they share the same patterns
-            elif char_num == "011":
-                # Define chr011 specific fashion ranges
-                chr011_ranges = {
-                    "fashion_1": [range(0, 110), range(111, 137)],  # 0-109, 111-136
-                    "fashion_2": [range(0, 137), range(138, 149)],  # 0-136, 138-148
-                    "fashion_3": [range(150, 158)],  # Satchel: 150-157
-                    "fashion_4": [range(159, 176)],  # Gloves: 159-175
-                    "fashion_5": [range(177, 201)]   # Shoes: 177-200
-                }
-                
-                best_match = "unknown"
-                max_non_keying_colors = 0
-                
-                for fashion_type, ranges in chr011_ranges.items():
-                    # Count non-keying colors in this fashion type's ranges
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color for chr011
-                                if not self.is_chr011_keying_color(color):
-                                    non_keying_count += 1
-                    
-                    # If this fashion type has more non-keying colors, it's likely the correct one
-                    if non_keying_count > max_non_keying_colors:
-                        max_non_keying_colors = non_keying_count
-                        best_match = fashion_type
-                
-                return best_match if max_non_keying_colors > 0 else "unknown"
-            # For Paula characters (chr100, chr101, chr102), use their specific ranges
-            elif char_num in ["100", "101", "102"]:
-                # Get the ranges for this character from the existing function
-                fashion_types = ["fashion_1", "fashion_2", "fashion_3", "fashion_4", 
-                               "fashion_5", "fashion_6", "fashion_7", "fashion_8"]
-                
-                best_match = "unknown"
-                max_non_keying_colors = 0
-                
-                for fashion_type in fashion_types:
-                    ranges = self.get_character_palette_ranges(char_num, fashion_type)
-                    if ranges == [range(256)]:  # Skip fallback ranges
-                        continue
-                    
-                    # Count non-keying colors in this fashion type's ranges
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color for Paula characters
-                                # Paula characters use the same keying colors as Sheep and Raccoon characters
-                                if not (self.is_chr003_keying_color(color) or 
-                                       self.is_chr008_keying_color(color) or 
-                                       color == (255, 0, 255)):  # Magenta
-                                    non_keying_count += 1
-                    
-                    # If this fashion type has more non-keying colors, it's likely the correct one
-                    if non_keying_count > max_non_keying_colors:
-                        max_non_keying_colors = non_keying_count
-                        best_match = fashion_type
-                
-                return best_match if max_non_keying_colors > 0 else "unknown"
-            # For chr024, use content-based categorization with fashion_5 subgroups
-            elif char_num == "024":
-                # Define chr024 specific fashion ranges with fashion_5 subgroups
-                chr024_ranges = {
-                    "fashion_1": [range(111, 131)],  # 111-130
-                    "fashion_2": [range(134, 149)],  # 134-148
-                    "fashion_3": [range(150, 165)],  # 150-164
-                    "fashion_4": [range(166, 174)],  # 166-173
-                    "fashion_5_comprehensive": [range(1, 34), range(111, 131), range(134, 149), range(150, 165), range(166, 174), range(208, 219)],  # w02, w12, w22, w32, w42 pattern (excluding 176-181)
-                    "fashion_5_pure": [range(176, 182)]   # w40, w41, w43 pattern
-                }
-                
-                # Count non-keying colors in each range and calculate density
-                range_analysis = {}
-                for fashion_type, ranges in chr024_ranges.items():
-                    total_indices = 0
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            total_indices += 1
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color for chr024
-                                if not self.is_palette_keying_color(color, i, char_num):
-                                    non_keying_count += 1
-                    
-                    # Calculate density (percentage of non-keying colors in this range)
-                    density = (non_keying_count / total_indices) if total_indices > 0 else 0
-                    range_analysis[fashion_type] = {
-                        'count': non_keying_count,
-                        'total': total_indices,
-                        'density': density
-                    }
-                
-                # Also check fashion_6 range (176-182) separately
-                fashion_6_ranges = [range(176, 182)]
-                fashion_6_total = 0
-                fashion_6_count = 0
-                for r in fashion_6_ranges:
+                filled_count = 0
+                total_count = 0
+                for r in ranges:
                     for i in r:
-                        fashion_6_total += 1
+                        total_count += 1
                         if i < len(palette_data):
                             color = palette_data[i]
-                            if not self.is_palette_keying_color(color, i, char_num):
-                                fashion_6_count += 1
-                
-                fashion_6_density = (fashion_6_count / fashion_6_total) if fashion_6_total > 0 else 0
-                range_analysis["fashion_6"] = {
-                    'count': fashion_6_count,
-                    'total': fashion_6_total,
-                    'density': fashion_6_density
-                }
-                
-                # Find the range with the highest density of non-keying colors
-                # For chr024, check fashion_5 first (w02 group with ALL required indexes)
-                # If it doesn't fit there, then filter to other categories
-                
-                # Check if this palette has non-keying colors in ALL required ranges for fashion_5
-                required_ranges = [
-                    range(1, 34),      # 1-33
-                    range(111, 131),   # 111-130
-                    range(134, 149),   # 134-148
-                    range(150, 165),   # 150-164
-                    range(166, 174),   # 166-173
-                    range(176, 182),   # 176-181
-                    range(208, 219)    # 208-218
-                ]
-                
-                all_ranges_have_colors = True
-                for r in required_ranges:
-                    range_has_colors = False
-                    for i in r:
-                        if i < len(palette_data):
-                            color = palette_data[i]
-                            if not self.is_palette_keying_color(color, i, char_num):
-                                range_has_colors = True
-                                break
-                    if not range_has_colors:
-                        all_ranges_have_colors = False
-                        break
-                
-                # If it fits fashion_5 criteria, return fashion_5
-                if all_ranges_have_colors:
-                    return "fashion_5"
-                
-                # Check if indices before and after the fashion_6 range (176-181) are keyed out
-                # This helps distinguish comprehensive vs pure palettes
-                before_range_keyed = True
-                after_range_keyed = True
-                
-                # Check index 175 (before 176-181)
-                if 175 < len(palette_data):
-                    color_175 = palette_data[175]
-                    if not self.is_palette_keying_color(color_175, 175, char_num):
-                        before_range_keyed = False
-                
-                # Check index 182 (after 176-181)
-                if 182 < len(palette_data):
-                    color_182 = palette_data[182]
-                    if not self.is_palette_keying_color(color_182, 182, char_num):
-                        after_range_keyed = False
-                
-                # If fashion_6 has colors AND surrounding indices are keyed out, it's likely a pure palette
-                fashion_6_analysis = range_analysis.get("fashion_6", {'count': 0, 'total': 0, 'density': 0})
-                if fashion_6_analysis['count'] > 0 and before_range_keyed and after_range_keyed:
-                    return "fashion_6"
-                
-                # If it doesn't fit fashion_5 or fashion_6, check other categories (1-4)
-                max_density = 0
-                best_match = "unknown"
-                min_total = float('inf')
-                
-                for fashion_type, analysis in range_analysis.items():
-                    if fashion_type in ["fashion_1", "fashion_2", "fashion_3", "fashion_4"] and analysis['count'] > 0:
-                        if analysis['density'] > max_density:
-                            max_density = analysis['density']
-                            best_match = fashion_type
-                            min_total = analysis['total']
-                        elif analysis['density'] == max_density and analysis['total'] < min_total:
-                            # Same density but fewer total indices (more specialized)
-                            best_match = fashion_type
-                            min_total = analysis['total']
-                
-                return best_match if max_density > 0 else "unknown"
-            else:
-                # For other characters, use the existing logic
-                fashion_types = ["fashion_1", "fashion_2", "fashion_3", "fashion_4", 
-                               "fashion_5", "fashion_6", "fashion_7", "fashion_8"]
-                
-                best_match = "unknown"
-                max_non_keying_colors = 0
-                
-                for fashion_type in fashion_types:
-                    ranges = self.get_character_palette_ranges(char_num, fashion_type)
-                    if ranges == [range(256)]:  # Skip fallback ranges
-                        continue
-                    
-                    # Count non-keying colors in this fashion type's ranges
-                    non_keying_count = 0
-                    for r in ranges:
-                        for i in r:
-                            if i < len(palette_data):
-                                color = palette_data[i]
-                                # Check if this color is not a keying color
-                                if not self.is_palette_keying_color(color, i, char_num):
-                                    non_keying_count += 1
-                    
-                    # If this fashion type has more non-keying colors, it's likely the correct one
-                    if non_keying_count > max_non_keying_colors:
-                        max_non_keying_colors = non_keying_count
+                            # A simple check: if it's not purely empty padding, it's a color.
+                            # We just avoid universal keying colors and magenta (255, 0, 255).
+                            if not self.is_universal_keying_color(color) and color != (255, 0, 255):
+                                filled_count += 1
+                                
+                if total_count > 0:
+                    percentage = filled_count / total_count
+                    # Use a small epsilon to avoid floating point issues
+                    if percentage > max_filled_percentage + 0.001:
+                        max_filled_percentage = percentage
                         best_match = fashion_type
-                
-                return best_match if max_non_keying_colors > 0 else "unknown"
+                        tied_matches = [fashion_type]
+                    elif abs(percentage - max_filled_percentage) <= 0.001 and percentage > 0:
+                        tied_matches.append(fashion_type)
+            # If there's a tie, just rely on the first one that matched
+            return best_match if max_filled_percentage > 0 else "unknown"
 
         except Exception as e:
             return "unknown"
@@ -7055,10 +6739,10 @@ class PaletteTool:
                 "hair": [range(208, 226)]  # Hair palettes: 208-225
             },
             "020": {
-                "fashion_1": [range(111, 138)],  # w00-w03: 111-137
+                "fashion_1": [range(111, 139)],  # w00-w03: 111-138
                 "fashion_2": [range(140, 148)],  # w10-w13: 140-147
-                "fashion_3": [range(150, 158)],  # w20-w23: 150-157
-                "fashion_4": [range(160, 172)],  # w30-w33: 160-171
+                "fashion_3": [range(150, 160)],  # w20-w23: 150-159
+                "fashion_4": [range(160, 173)],  # w30-w33: 160-172
                 "fashion_5": [range(173, 192)],  # w40-w43: 173-191
                 "3rd_job_base": [range(111, 192)],  # 3rd job base fashion: 111-191
                 "hair": [range(208, 219)]  # Hair palettes: 208-218
@@ -7092,8 +6776,7 @@ class PaletteTool:
                 "fashion_2": [range(134, 149)],  # 134-148
                 "fashion_3": [range(150, 165)],  # 150-164
                 "fashion_4": [range(166, 174)],  # 166-173
-                "fashion_5": [range(1, 34), range(111, 131), range(134, 149), range(150, 165), range(166, 174), range(176, 182), range(208, 219)],  # w02, w12, w22, w32, w42 pattern (includes ALL required ranges)
-                "fashion_6": [range(176, 182)],  # w40, w41, w43 pattern
+                "fashion_5": [range(176, 182)],  # Formal Shoes
                 "hair": [range(208, 226)]  # Hair palettes: 208-225
             },
             "100": {
@@ -7142,23 +6825,18 @@ class PaletteTool:
         if hasattr(self, 'fashion_canvas'):
             self.fashion_canvas.yview_moveto(0)
 
-    def get_display_image_for_export(self):
+    def get_display_image_for_export(self, frame_index=None):
         """Get the current image with palettes applied without updating display"""
         if not self.original_image:
             return None
             
-        # Get the current frame index (respects user choice)
-        frame_index = self.get_current_displayed_frame()
+        # Get the current frame index (respects user choice) if not provided
+        if frame_index is None:
+            frame_index = self.get_current_displayed_frame()
             
         original_img = self.character_images[self.current_character][frame_index]
         
-        # Check if frame is within selected range
-        if hasattr(self, 'custom_start_frame') and hasattr(self, 'custom_end_frame'):
-            if frame_index < self.custom_start_frame or frame_index > self.custom_end_frame:
-                # Return solid color image for out-of-range frames
-                w, h = Image.open(original_img).size
-                bg_img = Image.new("RGB", (w, h), self.background_color)
-                return bg_img
+
         
         # Get the original palette
         original_palette = []
@@ -7185,7 +6863,7 @@ class PaletteTool:
         
         # Create foreground image with current palettes
         fg_img = Image.new("P", (w, h))
-        fg_img.putpalette([color for palette_color in self.get_merged_palette() for color in palette_color])
+        fg_img.putpalette(self._flatten_palette(self.get_merged_palette()))
         fg_img.putdata(pixel_data)
         fg_img = fg_img.convert("RGB")
         
@@ -7200,12 +6878,13 @@ class PaletteTool:
         else:
             self.export_transparent_png()
 
-    def export_background_bmp(self, frame=None, force_portrait=False):
+    def export_background_bmp(self, frame=None, force_portrait=False, silent=False):
         """Export current image as BMP with background color
         
         Args:
             frame: Optional frame to export instead of current frame
-            force_portrait: If True, forces portrait mode regardless of settings"""
+            force_portrait: If True, forces portrait mode regardless of settings
+            silent: If True, bypasses file dialog and appends timestamp"""
         if not self.original_image:
             messagebox.showinfo("Notice", "No image loaded.")
             return
@@ -7230,23 +6909,32 @@ class PaletteTool:
         view_count = self.statistics.character_edits.get(key, {'views': 0})['views']
         base_name = f"{self.current_character}_view{view_count}"
         
+        if silent:
+            import time
+            timestamp = int(time.time())
+            base_name = f"{base_name}_{timestamp}"
+        
         # Get the current image with all palettes applied
         if not hasattr(self, 'update_single_frame_display'):
             raise AttributeError("Cannot get current display image")
             
-        img = self.get_display_image_for_export()
+        img = self.get_display_image_for_export(frame_index)
         if img is None:
             raise AttributeError("Failed to get current display image")
         
         try:
             # Get save path for regular BMP
             default_path = os.path.join(export_dir, f"{base_name}.bmp")
-            file_path = filedialog.asksaveasfilename(
-                defaultextension=".bmp",
-                filetypes=[("BMP files", "*.bmp")],
-                initialfile=os.path.basename(default_path),
-                initialdir=os.path.dirname(default_path)
-            )
+            
+            if silent:
+                file_path = default_path
+            else:
+                file_path = filedialog.asksaveasfilename(
+                    defaultextension=".bmp",
+                    filetypes=[("BMP files", "*.bmp")],
+                    initialfile=os.path.basename(default_path),
+                    initialdir=os.path.dirname(default_path)
+                )
             
             if not file_path:
                 return
@@ -7326,15 +7014,16 @@ class PaletteTool:
                 except Exception as e:
                     errors.append(str(e))
             
-            # Show results
-            if exported:
-                success_msg = "Exported:\n- " + "\n- ".join(exported)
-                if errors:
-                    success_msg += "\n\nErrors:\n- " + "\n- ".join(errors)
-                messagebox.showinfo("Export Complete", success_msg)
-            else:
-                error_msg = "Failed to export any files:\n- " + "\n- ".join(errors)
-                messagebox.showerror("Export Failed", error_msg)
+            # Show results if not silent
+            if not silent:
+                if exported:
+                    success_msg = "Exported:\n- " + "\n- ".join(exported)
+                    if errors:
+                        success_msg += "\n\nErrors:\n- " + "\n- ".join(errors)
+                    messagebox.showinfo("Export Complete", success_msg)
+                else:
+                    error_msg = "Failed to export any files:\n- " + "\n- ".join(errors)
+                    messagebox.showerror("Export Failed", error_msg)
                 
             # Restore layer state
             for layer, was_active in zip(self.palette_layers, current_layers):
@@ -7711,7 +7400,7 @@ class PaletteTool:
                     # Create output image
                     w, h = original_img.size
                     display_img = Image.new("P", (w, h))
-                    display_img.putpalette([color for palette_color in result_palette for color in palette_color])
+                    display_img.putpalette(self._flatten_palette(result_palette))
                     display_img.putdata(original_img.getdata())
                     
                     # Convert to RGBA and apply transparency
@@ -7793,8 +7482,10 @@ class PaletteTool:
         """Open color picker to change background color for preview"""
         from tkinter import colorchooser
         
+        # Convert current color to hex to pass to askcolor (prevents tuple errors on some platforms)
+        hex_current = f"#{self.background_color[0]:02x}{self.background_color[1]:02x}{self.background_color[2]:02x}"
         # Open color picker dialog
-        color = colorchooser.askcolor(title="Choose Background Color", color=self.background_color)
+        color = colorchooser.askcolor(title="Choose Background Color", color=hex_current)
         
         if color[1]:  # color[1] contains the hex color, color[0] contains RGB tuple
             # Convert hex to RGB
@@ -7806,6 +7497,12 @@ class PaletteTool:
             
             # Update the button color to show current background
             self.bg_color_button.configure(bg=hex_color)
+            
+            # Update the main preview to reflect new background
+            self.update_single_frame_display()
+            
+            # Save settings to persist background color
+            self._save_settings()
             
             # Refresh the display with new background color
             self._debounced_display_update()
@@ -7991,6 +7688,7 @@ class PaletteTool:
         self._live_layers = active_layers
         self._live_target_name = tk.StringVar(value=names[default_idx])
         self._live_prev_target_name = names[default_idx]
+        self._current_live_palette_name = names[default_idx]
         self._live_name_to_index = {n:i for i,n in enumerate(names)}
         self._live_selected_index = 0
         self._multi_select = tk.BooleanVar(value=False)
@@ -8029,8 +7727,8 @@ class PaletteTool:
 
         self._live_editor_window = tk.Toplevel(self.master)
         self._live_editor_window.title("Live Edit Palette")
-        self._live_editor_window.geometry("810x460")  # 30px wider window, 10px taller
-        self._live_editor_window.resizable(False, False)
+        self._live_editor_window.geometry("860x460")  # Wider window to fit gear button
+        self._live_editor_window.resizable(False, True)
         
         # Restore the UI mode that was stored earlier
         self.live_pal_ui_mode = current_ui_mode
@@ -8080,11 +7778,16 @@ class PaletteTool:
         tk.Button(top, text="Clear Sel", command=self._live_clear_selection).pack(side="left")
         self._sel_count_lbl = tk.Label(top, text="(0 selected)"); self._sel_count_lbl.pack(side="left", padx=(6,0))
         tk.Button(top, text="Save Item .pal", command=self._live_save_item_pal).pack(side="left", padx=(12,8))
-        tk.Button(top, text="Reset to Original", command=self._live_reset_to_original).pack(side="right", padx=(0, 5))
+        # Gears button for settings
+        tk.Button(top, text="⚙", width=3, command=self._open_live_pal_settings_menu).pack(side="right", padx=(0, 5))
         # Divider
         tk.Frame(top, width=2, bg="gray", relief="sunken").pack(side="right", fill="y", padx=5)
-        # Gears button for settings
-        tk.Button(top, text="⚙", width=3, command=self._open_live_pal_settings_menu).pack(side="right")
+        self._live_reset_btn = tk.Menubutton(top, text="Reset Colors", relief="raised")
+        self._live_reset_menu = tk.Menu(self._live_reset_btn, tearoff=0)
+        self._live_reset_btn.configure(menu=self._live_reset_menu)
+        self._live_reset_menu.add_command(label="Selected Index(es)", command=self._live_reset_selected)
+        self._live_reset_menu.add_command(label="Whole Pallette", command=self._live_reset_to_original)
+        self._live_reset_btn.pack(side="right", padx=(0, 5))
 
         # Body - use grid for better control over proportions
         body = tk.Frame(self._live_editor_window); body.pack(fill="both", expand=True, padx=1, pady=0)
@@ -8603,7 +8306,10 @@ class PaletteTool:
         
         # Frame info label
         self._simple_frame_label = tk.Label(preview_controls, text="Frame 1")
-        self._simple_frame_label.pack(side="left", padx=(10, 0))
+        self._simple_frame_label.pack(side="left", padx=(10, 5))
+        
+        # Helper instruction
+        tk.Label(preview_controls, text="(click preview to select index)", font=("Arial", 8)).pack(side="left")
         
         # Zoom controls
         zoom_frame = tk.Frame(preview_controls)
@@ -8739,48 +8445,7 @@ class PaletteTool:
             if not char_num:
                 return []
             
-            # Special handling for 3rd_job_base - use keyed colors instead of predefined ranges
-            if fashion_type == "3rd_job_base":
-                editable_indices = []
-                
-                # Check all palette indices for non-keying colors
-                for idx in range(256):  # Full palette range
-                    if idx == 0:  # Skip index 0 (always keying)
-                        continue
-                        
-                    # Get the color at this index
-                    if hasattr(current_layer, 'colors') and idx < len(current_layer.colors):
-                        color = current_layer.colors[idx]
-                        
-                        # Skip ALL green variant keying colors (00FF00 through 00FF15)
-                        if isinstance(color, (tuple, list)) and len(color) >= 3:
-                            r, g, b = color
-                            if g == 255 and r == 0 and 0 <= b <= 5:  # Catches all 00FFxx variants
-                                continue
-                        
-                        # Skip character-specific keying colors
-                        if char_num == "014":  # Lion
-                            if hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(color):
-                                continue
-                        elif char_num == "008":  # Raccoon
-                            if hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(color):
-                                continue
-                        elif char_num == "003":  # Sheep
-                            if hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(color):
-                                continue
-                        elif char_num == "011":  # Sheep 2nd Job
-                            if hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(color):
-                                continue
-                                
-                        # Skip universal keying colors and magenta
-                        if hasattr(self, 'is_universal_keying_color') and (self.is_universal_keying_color(color) or color == (255, 0, 255)):
-                            continue
-                            
-                        editable_indices.append(idx)
-                
-                return editable_indices
-            
-            # Get ranges for this character/fashion type (non-3rd_job_base)
+            # Get ranges for this character/fashion type
             ranges = CHARACTER_RANGES.get(char_num, {}).get(fashion_type, [])
             
             if not ranges:
@@ -8788,42 +8453,8 @@ class PaletteTool:
             
             editable_indices = []
             for r in ranges:
-                for idx in range(r.start, r.stop - 1):  # Skip last index in each range (keying color)
-                    if idx == 0:  # Skip index 0 (keying color)
-                        continue
-                        
-                    # Get the color at this index
-                    if hasattr(current_layer, 'colors') and idx < len(current_layer.colors):
-                        color = current_layer.colors[idx]
-                        
-                        # Skip ALL green variant keying colors (00FF00 through 00FF15)
-                        if isinstance(color, (tuple, list)) and len(color) >= 3:
-                            r, g, b = color
-                            if g == 255 and r == 0 and 0 <= b <= 5:  # Catches all 00FFxx variants
-                                continue
-                        
-                        # Skip character-specific keying colors
-                        if char_num == "014":  # Lion
-                            if self.is_chr014_keying_color(color):
-                                continue
-                        elif char_num == "008":  # Raccoon
-                            if self.is_chr008_keying_color(color):
-                                continue
-                        elif char_num == "003":  # Sheep
-                            if self.is_chr003_keying_color(color):
-                                continue
-                        elif char_num == "011":  # Sheep 2nd Job
-                            if self.is_chr011_keying_color(color):
-                                continue
-                            
-                        # Skip universal keying colors and magenta
-                        if self.is_universal_keying_color(color) or color == (255, 0, 255):
-                            continue
-                            
+                for idx in r:
                     editable_indices.append(idx)
-            
-            # Don't sort by brightness - preserve original order to prevent auto-sorting after edits
-            # The original order from the ranges is more predictable for users
             
             return editable_indices
             
@@ -9029,7 +8660,7 @@ class PaletteTool:
 
     def _update_simple_preview(self):
         """Update the simple mode preview image"""
-        if not hasattr(self, '_simple_preview_canvas') or not self._simple_preview_canvas:
+        if not hasattr(self, '_simple_preview_canvas') or not self._simple_preview_canvas or not self._simple_preview_canvas.winfo_exists():
             return
         
         if not hasattr(self, 'current_character') or not self.current_character:
@@ -9135,7 +8766,7 @@ class PaletteTool:
             display_img = Image.new("P", (w, h))
             
             # Apply the merged palette FIRST
-            display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
+            display_img.putpalette(self._flatten_palette(merged_palette))
             
             # THEN copy the pixel data from original image
             display_img.putdata(original_img.getdata())
@@ -9150,7 +8781,7 @@ class PaletteTool:
                     display_palette.append(color)
             
             # Apply the modified palette to the display image
-            display_img.putpalette([color for palette_color in display_palette for color in palette_color])
+            display_img.putpalette(self._flatten_palette(display_palette))
             
             # Convert to RGB for display
             rgb_img = display_img.convert("RGB")
@@ -9642,19 +9273,9 @@ class PaletteTool:
                 # Enable multi-select mode to allow relative HSV adjustments
                 self._multi_select.set(True)
                 
-                # Select based on UI mode
-                if self.live_pal_ui_mode == "Simple":
-                    # Simple mode: select all editable color indices (display indices)
-                    editable_indices = self._get_editable_color_indices()
-                    # In simple mode, _live_swatches contains only editable colors
-                    # so we select all available swatches
-                    self._selected_indices = set(range(len(self._live_swatches)))
-                else:
-                    # Advanced mode: select only editable colors from all 256
-                    editable_indices = self._get_editable_color_indices()
-                    # In advanced mode, _live_swatches contains all 256 colors
-                    # so we select only the editable indices
-                    self._selected_indices = set(editable_indices)
+                # Select all editable color indices regardless of UI mode
+                editable_indices = self._get_editable_color_indices()
+                self._selected_indices = set(editable_indices)
                 
                 if self._selected_indices:
                     self._last_clicked_index = min(self._selected_indices)
@@ -9671,6 +9292,50 @@ class PaletteTool:
         self._selected_indices.clear()
         self._last_clicked_index = None
         self._update_selection_ui()
+
+    def _live_reset_selected(self):
+        """Reset only the selected colors back to their original state"""
+        if not hasattr(self, '_live_original_colors') or not hasattr(self, '_live_layers'):
+            return
+            
+        if not hasattr(self, '_selected_indices') or not self._selected_indices:
+            from tkinter import messagebox
+            messagebox.showinfo("Notice", "No colors selected to reset.")
+            return
+            
+        current_name = self._live_target_name.get()
+        if current_name not in self._live_original_colors:
+            return
+            
+        # Find the current layer
+        current_layer = None
+        target_filename = current_name
+        if " — " in current_name:
+            target_filename = current_name.split(" — ")[-1]
+            
+        for layer in self._live_layers:
+            if hasattr(layer, 'name') and (layer.name == current_name or layer.name == target_filename):
+                current_layer = layer
+                break
+                
+        if not current_layer:
+            return
+            
+        # Restore selected original colors to the layer data
+        original_colors = self._live_original_colors[current_name]
+        for i in self._selected_indices:
+            if i < len(current_layer.colors) and i < len(original_colors):
+                current_layer.colors[i] = original_colors[i]
+                
+        # Update temp cache with reset colors
+        if hasattr(self, '_live_temp_palette_cache'):
+            self._live_temp_palette_cache[current_name] = current_layer.colors.copy()
+            
+        # Handle reset differently for Simple vs Advanced mode
+        if self.live_pal_ui_mode == "Simple":
+            self._simple_mode_reset(current_layer)
+        else:
+            self._advanced_mode_reset(current_layer)
 
     def _live_reset_to_original(self):
         """Reset the current layer's colors back to their original state"""
@@ -10184,16 +9849,12 @@ class PaletteTool:
                 self.char_num = m.group(1) if m else "000"
             # ---------------------------------------
 
-            # Skip if current color is keyed
-            current_color = ly.colors[i]
-            if (self.is_universal_keying_color(current_color) or 
-                current_color == (255, 0, 255) or  # Magenta
-                (hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(current_color)) or  # Sheep
-                (hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(current_color)) or  # Raccoon
-                (hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(current_color)) or  # Sheep 2nd Job
-                (hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(current_color)) or  # Lion 2nd Job
-                (hasattr(self, 'is_palette_keying_color') and self.is_palette_keying_color(current_color, i, self.char_num))):  # Any other character-specific rules
-                continue
+            # Force HSV Nudge if we land on a base keying color
+            candidate_color = (int(round(r*255)), int(round(g*255)), int(round(b*255)))
+            if candidate_color == (0, 255, 0) or candidate_color == (255, 0, 255):
+                candidate_color = self._find_nearest_non_keyed_color(candidate_color)
+                
+            ly.colors[i] = candidate_color
 
             rr, gg, bb = colorsys.hsv_to_rgb((h % 360)/360.0, s/100.0, v/100.0)
             rr, gg, bb = int(round(rr*255)), int(round(gg*255)), int(round(bb*255))
@@ -10853,7 +10514,7 @@ class PaletteTool:
             if self._multi_select.get() and self._selected_indices:
                 indices_to_modify = self._selected_indices
             else:
-                indices_to_modify = range(len(ly.colors))
+                indices_to_modify = self._get_editable_color_indices(ly)
             
         # Special handling for neutral colors and variants
         if target_hue is None or variant in ["grey", "light_grey", "dark_grey", "black", "white"]:
@@ -10975,29 +10636,12 @@ class PaletteTool:
                     s = min(1.0, s * 1.2)  # Moderate saturation increase
                     v = min(1.0, v * 1.05)  # Slightly brighter
                     
-                # Skip if current color is keyed
-                current_color = ly.colors[i]
-                if (self.is_universal_keying_color(current_color) or 
-                    current_color == (255, 0, 255) or  # Magenta
-                    (hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(current_color)) or  # Sheep
-                    (hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(current_color)) or  # Raccoon
-                    (hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(current_color)) or  # Sheep 2nd Job
-                    (hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(current_color)) or  # Lion 2nd Job
-                    (hasattr(self, 'is_palette_keying_color') and self.is_palette_keying_color(current_color, i, self.char_num))):  # Any other character-specific rules
-                    continue
-                    
                 # Convert back to RGB (for all variants)
                 rr, gg, bb = colorsys.hsv_to_rgb(h, s, v)
                 candidate_color = (int(rr*255), int(gg*255), int(bb*255))
                 
                 # Check if new color would be a keying color
-                if (self.is_universal_keying_color(candidate_color) or 
-                    candidate_color == (255, 0, 255) or  # Magenta
-                    (hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(candidate_color)) or  # Sheep
-                    (hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(candidate_color)) or  # Raccoon
-                    (hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(candidate_color)) or  # Sheep 2nd Job
-                    (hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(candidate_color)) or  # Lion 2nd Job
-                    (hasattr(self, 'is_palette_keying_color') and self.is_palette_keying_color(candidate_color, i, self.char_num))):  # Any other character-specific rules
+                if candidate_color == (0, 255, 0) or candidate_color == (255, 0, 255):
                     candidate_color = self._find_nearest_non_keyed_color(candidate_color)
                 
                 ly.colors[i] = candidate_color
@@ -11191,41 +10835,24 @@ class PaletteTool:
             print(f"CONSOLE ERROR MSG: Error loading original palette: {e}")
             return None
     
-    def _is_keyed_color(self, color, index):
+    def _is_keyed_color(self, color, index=None):
         """Check if a color would be a keying color that should be avoided."""
-        r, g, b = color
-        # Check if it matches common keying colors
-        if (r, g, b) == (255, 0, 255):  # Magenta
-            return True
-        if (r, g, b) == (0, 255, 0):    # Green
-            return True
-        # Check if it's very close to keying colors (within 10 units)
-        if abs(r - 255) < 10 and abs(g - 0) < 10 and abs(b - 255) < 10:  # Close to magenta
-            return True
-        if abs(r - 0) < 10 and abs(g - 255) < 10 and abs(b - 0) < 10:    # Close to green
+        if color == (255, 0, 255) or color == (0, 255, 0):
             return True
         return False
     
     def _find_nearest_non_keyed_color(self, color):
-        """Find the nearest color that isn't a keying color."""
-        r, g, b = color
-        # Simple approach: adjust the color slightly to avoid keying
-        if self._is_keyed_color((r, g, b), 0):
-            # Try adjusting each channel slightly
-            for offset in [5, -5, 10, -10, 15, -15]:
-                for channel in ['r', 'g', 'b']:
-                    test_color = [r, g, b]
-                    if channel == 'r':
-                        test_color[0] = max(0, min(255, r + offset))
-                    elif channel == 'g':
-                        test_color[1] = max(0, min(255, g + offset))
-                    elif channel == 'b':
-                        test_color[2] = max(0, min(255, b + offset))
-                    
-                    if not self._is_keyed_color(tuple(test_color), 0):
-                        return tuple(test_color)
-        
-        # If all else fails, return the original color
+        """Find the nearest color that isn't a keying color using HSV nudge."""
+        if self._is_keyed_color(color, 0):
+            import colorsys
+            r, g, b = color
+            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
+            if v > 0.5:
+                v = max(0.0, v - 0.02)
+            else:
+                v = min(1.0, v + 0.02)
+            nr, ng, nb = colorsys.hsv_to_rgb(h, s, v)
+            return (int(nr*255), int(ng*255), int(nb*255))
         return color
 
     def _live_save_item_pal(self, layer=None):
@@ -11262,6 +10889,17 @@ class PaletteTool:
             vga_colors = list(colors)
             while len(vga_colors) < 256:
                 vga_colors.append((0, 0, 0))  # Fill with black if needed
+            
+            # Filter colors outside allowed indices to magenta
+            if hasattr(ly, 'palette_type') and ly.palette_type:
+                char_num = self.current_character[3:] if hasattr(self, 'current_character') and self.current_character else None
+                if char_num:
+                    allowed_indices = self.get_allowed_indices_for_palette(ly, char_num)
+                    if allowed_indices:
+                        for i in range(256):
+                            # fashion_4 chr020 has a special case
+                            if i not in allowed_indices and not (ly.palette_type == 'fashion_4' and char_num == '020'):
+                                vga_colors[i] = (255, 0, 255)  # Replace outside colors with magenta
             
             # Write VGA 24-bit format: each color as 3 bytes (R, G, B) in sequence
             non_keyed_count = 0
@@ -11479,6 +11117,57 @@ class PaletteTool:
         
         # Default state - enabled
         self.icon_editor_button.config(state="normal", text="Icon Editor")
+
+    def bulk_export_visuals(self):
+        """Bulk export visuals: Portrait + Icons for all selected fashions"""
+        import os
+        import time
+        from tkinter import messagebox
+        from icon_handler import IconHandler
+        import re
+        
+        exported_count = 0
+        try:
+            # 1. Export Portrait (silently honoring settings)
+            frame = self.get_current_displayed_frame()
+            if frame is not None:
+                self.export_background_bmp(frame, force_portrait=True, silent=True)
+                exported_count += 1
+                
+            # 2. Export Icons (for all loaded fashion palettes)
+            if hasattr(self, 'palette_layers'):
+                icon_handler = IconHandler()
+                icon_handler.main_window = self
+                
+                # Use a timestamp to prevent overwriting
+                timestamp = int(time.time())
+                
+                for layer in self.palette_layers:
+                    # Export all loaded palettes, regardless of whether they are checked as "active" in the checklist
+                    # Extract fashion type safely (e.g. fashion_1)
+                    if hasattr(layer, 'palette_type') and layer.palette_type.startswith('fashion_'):
+                        fashion_type = layer.palette_type
+                        
+                        # Use the layer name but append the timestamp to prevent overwrites
+                        icon_pal_name = f"{os.path.splitext(layer.name)[0]}_{timestamp}"
+                        
+                        success = icon_handler.save_as_icon(
+                            self.current_character,
+                            fashion_type,
+                            layer.colors,
+                            icon_pal_name
+                        )
+                        if success:
+                            exported_count += 1
+            
+            if exported_count > 0:
+                messagebox.showinfo("Success", f"Successfully bulk exported {exported_count} visuals/icons.\nPortraits were saved to exports/images.\nIcons were saved to exports/icons.")
+            else:
+                messagebox.showinfo("Notice", "Nothing was exported.")
+                
+        except Exception as e:
+            print(f"CONSOLE ERROR MSG: Error in bulk_export_visuals: {e}")
+            messagebox.showerror("Error", f"Failed to bulk export visuals: {e}")
 
     def _open_icon_editor(self):
         """Open the icon editor from the main screen."""
@@ -11814,7 +11503,7 @@ class PaletteTool:
                                 title="Save Icon As",
                                 defaultextension=".bmp",
                                 filetypes=[("BMP files", "*.bmp"), ("All files", "*.*")],
-                                initialname=default_name,
+                                initialfile=default_name,
                                 parent=dialog
                             )
                             
@@ -12138,6 +11827,85 @@ class PaletteTool:
             info += f"  {i+1}. {layer.name} ({layer.palette_type}) - {'Active' if layer.active else 'Inactive'}\n"
         
         messagebox.showinfo("Debug Info", info)
+
+    def show_current_display_info(self):
+        """Show current display information"""
+        try:
+            # Create dialog window
+            info_dialog = tk.Toplevel(self.master)
+            info_dialog.title("Current Display Info")
+            info_dialog.transient(self.master)
+            info_dialog.resizable(False, False)
+            
+            # Main frame with padding
+            main_frame = tk.Frame(info_dialog)
+            main_frame.pack(fill="both", expand=True, padx=30, pady=20)
+            
+            char_name = self.character_var.get() if hasattr(self, 'character_var') else "Unknown"
+            job_name = self.job_var.get() if hasattr(self, 'job_var') else "Unknown"
+            
+            info = f"Character: {char_name}\n"
+            info += f"Job: {job_name}\n"
+            
+            hair_pal = "None"
+            fashion_pals = []
+            third_job_base = "None"
+            
+            if hasattr(self, 'palette_layers'):
+                for layer in self.palette_layers:
+                    if getattr(layer, 'active', False):
+                        layer_name = getattr(layer, 'name', 'Unknown')
+                        if getattr(layer, 'palette_type', '') == "hair":
+                            hair_pal = os.path.basename(layer_name)
+                        elif getattr(layer, 'palette_type', '').startswith("fashion_"):
+                            label = layer.palette_type.capitalize().replace('_', ' ')
+                            name = os.path.basename(layer_name)
+                            fashion_pals.append(f"{label} : {name}")
+                        elif getattr(layer, 'palette_type', '') == "3rd_job_base":
+                            third_job_base = os.path.basename(layer_name)
+                        
+            info += f"Hair palette: {hair_pal}\n"
+            for fp in sorted(fashion_pals):
+                info += f"{fp}\n"
+                
+            if third_job_base != "None":
+                info += f"Third job base: {third_job_base}\n"
+                
+            current_frame = 1
+            total_frames = 0
+            try:
+                current_frame = self.get_current_displayed_frame() + 1
+                if hasattr(self, 'current_character') and getattr(self, 'current_character', None):
+                    total_frames = len(self.character_images.get(self.current_character, []))
+            except Exception as e:
+                print(f"Error getting frame info: {e}")
+                
+            info += f"Frame: {current_frame} / {total_frames}\n"
+            
+            info_label = tk.Label(main_frame, text=info, justify="left", font=("Arial", 11))
+            info_label.pack(pady=(0, 20))
+            
+            # Close button
+            close_btn = tk.Button(main_frame, text="Close", 
+                                 command=info_dialog.destroy, font=("Arial", 10), width=10)
+            close_btn.pack()
+            
+            # Center the dialog
+            info_dialog.update_idletasks()
+            self._center_window_on_parent(info_dialog)
+            
+            # Grab set AFTER successful build to prevent freezing on error
+            info_dialog.grab_set()
+            
+            # Bring to front
+            info_dialog.lift()
+            info_dialog.focus_force()
+        except Exception as e:
+            print(f"Error showing display info: {e}")
+            if 'info_dialog' in locals():
+                info_dialog.destroy()
+            from tkinter import messagebox
+            messagebox.showerror("Error", f"Could not show display info: {e}")
 
     def show_credits(self):
         """Show credits dialog"""
@@ -12632,17 +12400,23 @@ class PaletteTool:
                 continue
             
             # Convert RGB to HSV
-            r, g, b = original_color[0] / 255.0, original_color[1] / 255.0, original_color[2] / 255.0
-            h, s, v = colorsys.rgb_to_hsv(r, g, b)
+            if hue_shift == 0 and sat_shift == 0 and val_shift == 0:
+                new_color = tuple(original_color)
+            else:
+                r, g, b = original_color[0] / 255.0, original_color[1] / 255.0, original_color[2] / 255.0
+                h, s, v = colorsys.rgb_to_hsv(r, g, b)
+                
+                # Apply shifts
+                h = (h * 360 + hue_shift) % 360 / 360  # Hue wraps around
+                s = max(0, min(1, s + sat_shift / 100))  # Saturation clamped 0-1
+                v = max(0, min(1, v + val_shift / 100))  # Value clamped 0-1
+                
+                # Convert back to RGB
+                r, g, b = colorsys.hsv_to_rgb(h, s, v)
+                new_color = (int(r * 255), int(g * 255), int(b * 255))
             
-            # Apply shifts
-            h = (h * 360 + hue_shift) % 360 / 360  # Hue wraps around
-            s = max(0, min(1, s + sat_shift / 100))  # Saturation clamped 0-1
-            v = max(0, min(1, v + val_shift / 100))  # Value clamped 0-1
-            
-            # Convert back to RGB
-            r, g, b = colorsys.hsv_to_rgb(h, s, v)
-            new_color = (int(r * 255), int(g * 255), int(b * 255))
+            if new_color == (0, 255, 0) or new_color == (255, 0, 255):
+                new_color = self._find_nearest_non_keyed_color(new_color)
             
             # Update the layer color
             matching_layer.colors[idx] = new_color

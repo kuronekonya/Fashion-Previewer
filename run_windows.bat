@@ -6,7 +6,7 @@ echo [                       Launcher                 ]
 echo +------------------------------------------------+
 echo.
 echo Lovingly made by:
-echo KusangiKyo, Dino, Yuki, and Mewsie.
+echo KusangiKyo, Dino, Yuki, Arketual, and Mewsie.
 echo.
 echo From CoraTO, on behalf of the Trickster community.
 echo Thank you for everything :3

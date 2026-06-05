@@ -335,8 +335,7 @@ class IconHandler:
             "fashion_2": "Opera Cape",
             "fashion_3": "Frock Coat",
             "fashion_4": "Dress Pants",
-            "fashion_5": "Formal Shoes",
-            "fashion_6": "Unknown"
+            "fashion_5": "Formal Shoes"
         },
         "025": {  # chr025 (Paula 1st Job) - using 025 since icons are in chr025 folder
             "fashion_1": "Stadium Jacket",
@@ -837,9 +836,9 @@ class IconHandler:
             translator = IndexTranslator()
             ranges = translator.original_ranges.get(char_num, {}).get(fashion_type, [])
             
-            # Extract ONLY the valid colors from the ranges, excluding keying colors and last indexes
+            # Extract ONLY the valid colors from the ranges, excluding keying colors
             for r in ranges:
-                for idx in range(r.start, r.stop - 1):  # Skip last index in each range
+                for idx in range(r.start, r.stop):
                     if idx < len(adjusted_pal_colors):
                         color = adjusted_pal_colors[idx]
                         # Skip ALL keying colors: magenta, neon green, and character-specific keyed patterns
@@ -890,6 +889,21 @@ class IconHandler:
                 base_pal_colors, custom_palette, char_id, fashion_type
             )
             
+            # Precompute the darkest non-keying color available in the custom mapping.
+            # Used as a fallback for near-black BMP pixels that don't map to any
+            # fashion range entry (otherwise they become opaque magenta, which the
+            # game renders as transparent and shows the dark model beneath).
+            _keying = {(255, 0, 255), (0, 255, 0)}
+            _mapped_custom_colors = [
+                c for c in base_to_custom_mapping.values()
+                if c not in _keying and not self.is_universal_keying_color(c)
+            ]
+            _darkest_custom_color = (
+                min(_mapped_custom_colors, key=lambda c: c[0] + c[1] + c[2])
+                if _mapped_custom_colors else None
+            )
+            _near_black_threshold = 30  # sum(r,g,b) below this → treat as near-black
+
             # Step 3: Map BMP colors to _base.pal colors (exact matches)
             bmp_to_base_mapping = {}
             used_indices = sorted(set(original_pixel_data))
@@ -971,15 +985,28 @@ class IconHandler:
                             if matched_base_idx in base_to_custom_mapping:
                                 final_color = base_to_custom_mapping[matched_base_idx]
                             else:
-                                final_color = (255, 0, 255) # Unmapped
+                                # Unmapped: if the original BMP pixel was near-black, use the
+                                # darkest custom palette color so the export doesn't produce
+                                # opaque magenta pixels that the game renders as transparent,
+                                # exposing the dark model beneath (appearing as black pixels).
+                                bmp_brightness = bmp_color[0] + bmp_color[1] + bmp_color[2]
+                                if bmp_brightness <= _near_black_threshold and _darkest_custom_color is not None:
+                                    final_color = _darkest_custom_color
+                                else:
+                                    final_color = (255, 0, 255)  # Unmapped
                         else:
-                            # 4. Fallback: find closest color
-                            final_color = (255, 0, 255)
+                            # 4. Fallback: find closest color in base palette
                             closest_idx = self._find_closest_color_index(bmp_color, base_pal_colors)
                             if closest_idx is not None and closest_idx in base_to_custom_mapping:
                                 final_color = base_to_custom_mapping[closest_idx]
                             else:
-                                final_color = bmp_color # Extreme fallback
+                                # If bmp_color is near-black, prefer the darkest custom color
+                                # over keeping the raw BMP color, which can look jarring.
+                                bmp_brightness = bmp_color[0] + bmp_color[1] + bmp_color[2]
+                                if bmp_brightness <= _near_black_threshold and _darkest_custom_color is not None:
+                                    final_color = _darkest_custom_color
+                                else:
+                                    final_color = bmp_color  # Extreme fallback
                 
                 new_palette.extend([final_color[0], final_color[1], final_color[2]])
             
@@ -1229,44 +1256,10 @@ class IconHandler:
 
     def _is_keyed_color(self, rgb_color, palette_index=None):
         """Check if an RGB color is a keyed/transparency color that should be avoided"""
-        r, g, b = rgb_color
-        
-        # Universal keying colors (same logic as main app)
-        if self.is_universal_keying_color(rgb_color):
+        if rgb_color == (0, 255, 0) or rgb_color == (255, 0, 255):
             return True
-        
-        # Magenta (chroma key)
-        if rgb_color == (255, 0, 255):
-            return True
-        
-        # Character-specific keying rules
-        if hasattr(self, 'char_id') and self.char_id:
-            char_num = self.char_id[3:]  # Extract number from chr###
-            
-            # chr004 specific rules
-            if char_num == "004":
-                if rgb_color == (0, 0, 0):  # Black
-                    return True
-                if palette_index == 255:  # Last color in palette
-                    return True
-            
-            # chr003 (Sheep) - uses universal keying colors
-            elif char_num == "003":
-                return self.is_chr003_keying_color(rgb_color)
-            
-            # chr008 (Raccoon) - uses universal keying colors  
-            elif char_num == "008":
-                return self.is_chr008_keying_color(rgb_color)
-            
-            # chr011 (Sheep 2nd Job) - uses same as chr003
-            elif char_num == "011":
-                return self.is_chr011_keying_color(rgb_color)
-            
-            # chr014 (Lion 2nd Job) - uses selective keying
-            elif char_num == "014":
-                return self.is_chr014_keying_color(rgb_color)
-        
         return False
+
 
     def is_universal_keying_color(self, color):
         """Check if a color is a universal keying color for ALL characters"""
@@ -1308,6 +1301,20 @@ class IconHandler:
         if color == (0, 255, 0) or color == (255, 0, 255):  # Pure green and magenta
             return True
         return False
+
+    def _find_closest_color_index(self, target_color, palette_colors):
+        """Return the index of the closest non-keying color in palette_colors to target_color."""
+        best_idx = None
+        best_dist = float('inf')
+        for idx, color in enumerate(palette_colors):
+            if (color == (255, 0, 255) or color == (0, 255, 0) or
+                    self.is_universal_keying_color(color)):
+                continue
+            dist = sum((a - b) ** 2 for a, b in zip(target_color, color))
+            if dist < best_dist:
+                best_dist = dist
+                best_idx = idx
+        return best_idx
 
 
 class IconPaletteEditor:
@@ -1477,48 +1484,26 @@ class IconPaletteEditor:
 
     
     def _find_nearest_non_keyed_color(self, target_rgb, adjustment_direction='both'):
-        """Find the nearest non-keyed color by adjusting RGB values with precise increments"""
-        r, g, b = target_rgb
-        
-        # If the color is not keyed, return it as-is
+        """Find the nearest non-keyed color by adjusting HSV values"""
         if not self._is_keyed_color(target_rgb):
             return target_rgb
-        
-        # Try precise adjustment strategies - start with small increments, then larger
-        distance_steps = [1, 2, 3, 4, 5, 10, 15, 20, 30, 40, 50]  # Precise increments first
-        
-        for offset in distance_steps:
-            candidates = []
             
-            if adjustment_direction in ['both', 'up']:
-                # Try increasing values
-                candidates.extend([
-                    (min(255, r + offset), g, b),
-                    (r, min(255, g + offset), b),
-                    (r, g, min(255, b + offset)),
-                    (min(255, r + offset), min(255, g + offset), b),
-                    (min(255, r + offset), g, min(255, b + offset)),
-                    (r, min(255, g + offset), min(255, b + offset)),
-                ])
-            
-            if adjustment_direction in ['both', 'down']:
-                # Try decreasing values
-                candidates.extend([
-                    (max(0, r - offset), g, b),
-                    (r, max(0, g - offset), b),
-                    (r, g, max(0, b - offset)),
-                    (max(0, r - offset), max(0, g - offset), b),
-                    (max(0, r - offset), g, max(0, b - offset)),
-                    (r, max(0, g - offset), max(0, b - offset)),
-                ])
-            
-            # Check each candidate
-            for candidate in candidates:
-                if not self._is_keyed_color(candidate):
-                    return candidate
+        import colorsys
+        r, g, b = target_rgb
+        h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
         
-        # If we can't find a good alternative, return a safe default
-        return (128, 128, 128)  # Gray as fallback
+        if adjustment_direction == 'up':
+            v = min(1.0, v + 0.02)
+        elif adjustment_direction == 'down':
+            v = max(0.0, v - 0.02)
+        else:
+            if v > 0.5:
+                v = max(0.0, v - 0.02)
+            else:
+                v = min(1.0, v + 0.02)
+                
+        nr, ng, nb = colorsys.hsv_to_rgb(h, s, v)
+        return (int(nr*255), int(ng*255), int(nb*255))
     
     def _load_reference_palette(self):
         """Load the reference palette and determine keying color."""
@@ -2375,7 +2360,12 @@ class IconPaletteEditor:
         
         # Regular buttons
         ttk.Button(button_frame, text="Export as Icon", command=self._export_icon).pack(side=tk.LEFT, padx=(0, 10))
-        ttk.Button(button_frame, text="Reset to Original", command=self._reset_colors).pack(side=tk.LEFT, padx=(0, 10))
+        self.reset_btn = ttk.Menubutton(button_frame, text="Reset Colors")
+        self.reset_menu = tk.Menu(self.reset_btn, tearoff=0)
+        self.reset_btn.configure(menu=self.reset_menu)
+        self.reset_menu.add_command(label="Selected Index(es)", command=self._reset_selected_colors)
+        self.reset_menu.add_command(label="Whole Pallette", command=self._reset_colors)
+        self.reset_btn.pack(side=tk.LEFT, padx=(0, 10))
         ttk.Button(button_frame, text="Close", command=self._close_editor).pack(side=tk.RIGHT)
         
         # Initialize UI
@@ -2801,12 +2791,25 @@ class IconPaletteEditor:
             if self.color_preview is not None:
                 self.color_preview.configure(bg=hex_color)
         
-        # Update live preview
+        # Debounce the heavy preview rebuild + highlight refresh so rapid slider
+        # movement doesn't cause strobing (cancel any pending call, schedule one
+        # ~50 ms out so the grid settles before a full redraw fires).
+        try:
+            if getattr(self, '_color_change_after_id', None):
+                self.window.after_cancel(self._color_change_after_id)
+        except Exception:
+            pass
+        try:
+            self._color_change_after_id = self.window.after(50, self._deferred_color_change_update)
+        except Exception:
+            self._update_preview()
+            self._refresh_selection_highlights()
+
+    def _deferred_color_change_update(self):
+        self._color_change_after_id = None
         self._update_preview()
-        
-        # Refresh selection highlights to ensure they persist after color changes
         self._refresh_selection_highlights()
-    
+
     def _bring_to_front(self):
         """Bring the icon editor window to front."""
         self.window.lift()
@@ -4225,6 +4228,41 @@ class IconPaletteEditor:
         except Exception as e:
             pass
     
+    def _reset_selected_colors(self):
+        """Reset only the selected colors to their original extracted colors."""
+        if not hasattr(self, 'selected_indices') or not self.selected_indices:
+            from tkinter import messagebox
+            messagebox.showinfo("Notice", "No colors selected to reset.")
+            return
+
+        current_palette_key = f"{self.char_id}_{self.fashion_type}"
+        
+        # Reset to original colors (only for selected indices)
+        original_colors = None
+        if hasattr(self, '_original_palettes') and current_palette_key in self._original_palettes:
+            original_colors = self._original_palettes[current_palette_key]
+        else:
+            # Fallback: rebuild from custom_palette and editable_colors
+            original_colors = self.custom_palette.copy()
+            for idx, color in self.editable_colors.items():
+                if idx < len(original_colors):
+                    original_colors[idx] = color
+                    
+        for idx in self.selected_indices:
+            if idx < len(self.current_colors) and idx < len(original_colors):
+                self.current_colors[idx] = original_colors[idx]
+        
+        # Update temp cache with reset colors
+        if hasattr(self, '_temp_palette_cache'):
+            self._temp_palette_cache[current_palette_key] = self.current_colors.copy()
+        
+        # Recreate the palette grid (this will show the 27 color warning if needed)
+        self._create_palette_grid()
+        
+        # Update color picker and preview
+        self._update_color_picker()
+        self._update_preview()
+
     def _reset_colors(self):
         """Reset colors to original extracted colors."""
         current_palette_key = f"{self.char_id}_{self.fashion_type}"
@@ -4633,7 +4671,7 @@ class IconPaletteEditor:
         if self.multi_select_var.get() and self.selected_indices:
             indices_to_modify = self.selected_indices
         else:
-            indices_to_modify = range(len(self.current_colors))
+            indices_to_modify = self.editable_colors.keys()
         
         # Special handling for neutral colors and variants
         if target_hue is None or variant in ["grey", "light_grey", "dark_grey", "black", "white"]:
@@ -4756,29 +4794,12 @@ class IconPaletteEditor:
                     s = min(1.0, s * 1.2)  # Moderate saturation increase
                     v = min(1.0, v * 1.05)  # Slightly brighter
                 
-                # Skip if current color is keyed
-                current_color = self.current_colors[i]
-                if (self.is_universal_keying_color(current_color) or 
-                    current_color == (255, 0, 255) or  # Magenta
-                    (hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(current_color)) or  # Sheep
-                    (hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(current_color)) or  # Raccoon
-                    (hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(current_color)) or  # Sheep 2nd Job
-                    (hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(current_color)) or  # Lion 2nd Job
-                    (hasattr(self, 'is_palette_keying_color') and self.is_palette_keying_color(current_color, i, self.char_id))):  # Any other character-specific rules
-                    continue
-                    
                 # Convert back to RGB
                 rr, gg, bb = colorsys.hsv_to_rgb(h, s, v)
                 candidate_color = (int(rr*255), int(gg*255), int(bb*255))
                 
                 # Check if new color would be a keying color
-                if (self.is_universal_keying_color(candidate_color) or 
-                    candidate_color == (255, 0, 255) or  # Magenta
-                    (hasattr(self, 'is_chr003_keying_color') and self.is_chr003_keying_color(candidate_color)) or  # Sheep
-                    (hasattr(self, 'is_chr008_keying_color') and self.is_chr008_keying_color(candidate_color)) or  # Raccoon
-                    (hasattr(self, 'is_chr011_keying_color') and self.is_chr011_keying_color(candidate_color)) or  # Sheep 2nd Job
-                    (hasattr(self, 'is_chr014_keying_color') and self.is_chr014_keying_color(candidate_color)) or  # Lion 2nd Job
-                    (hasattr(self, 'is_palette_keying_color') and self.is_palette_keying_color(candidate_color, i, self.char_id))):  # Any other character-specific rules
+                if candidate_color == (0, 255, 0) or candidate_color == (255, 0, 255):
                     candidate_color = self._find_nearest_non_keyed_color(candidate_color)
                 
                 self.current_colors[i] = candidate_color
@@ -4824,9 +4845,6 @@ class IconPaletteEditor:
     
     def _is_keyed_color(self, color, index):
         """Check if a color would be a keying color that should be avoided."""
-        r, g, b = color
-        
-        # Use the same comprehensive keying logic as the IconHandler
         # Universal keying colors
         if self.is_universal_keying_color(color):
             return True
@@ -4905,25 +4923,17 @@ class IconPaletteEditor:
         return False
     
     def _find_nearest_non_keyed_color(self, color):
-        """Find the nearest color that isn't a keying color."""
-        r, g, b = color
-        # Simple approach: adjust the color slightly to avoid keying
-        if self._is_keyed_color((r, g, b), 0):
-            # Try adjusting each channel slightly
-            for offset in [5, -5, 10, -10, 15, -15]:
-                for channel in ['r', 'g', 'b']:
-                    test_color = [r, g, b]
-                    if channel == 'r':
-                        test_color[0] = max(0, min(255, r + offset))
-                    elif channel == 'g':
-                        test_color[1] = max(0, min(255, g + offset))
-                    elif channel == 'b':
-                        test_color[2] = max(0, min(255, b + offset))
-                    
-                    if not self._is_keyed_color(tuple(test_color), 0):
-                        return tuple(test_color)
-        
-        # If all else fails, return the original color
+        """Find the nearest color that isn't a keying color using HSV nudge."""
+        if self._is_keyed_color(color, 0):
+            import colorsys
+            r, g, b = color
+            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
+            if v > 0.5:
+                v = max(0.0, v - 0.02)
+            else:
+                v = min(1.0, v + 0.02)
+            nr, ng, nb = colorsys.hsv_to_rgb(h, s, v)
+            return (int(nr*255), int(ng*255), int(nb*255))
         return color
     
     def _quick_export(self, export_type):
