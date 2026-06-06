@@ -20,8 +20,8 @@
         "dont_show_all_mode_warning": false,
         "dont_show_50_frames_warning": false,
         "show_frame_options": true,
-        "last_character": "chr018",
-        "last_job": "3rd Job",
+        "last_character": "chr007",
+        "last_job": "1st Job",
         "last_frame": 0,
         "last_preview_mode": "custom"
     },
@@ -34,7 +34,7 @@
             "last_viewed_frame": 0,
             "palette_selections": {
                 "hair": "NONE",
-                "third_job": "",
+                "third_job": "NONE",
                 "fashion": {
                     "fashion_1": "NONE",
                     "fashion_2": "NONE",
@@ -222,6 +222,42 @@
                     "fashion_4": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w34.pal",
                     "fashion_5": "C:\\Users\\bayle\\Documents\\GitHub\\Fashion-Previewer\\src\\nonremovable_assets\\vanilla_pals\\fashion\\chr006_w46.pal"
                 }
+            }
+        },
+        "chr025": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {}
+            }
+        },
+        "chr027": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {}
+            }
+        },
+        "chr026": {
+            "custom_frame_count": 1,
+            "custom_start_index": 0,
+            "use_frame_choice": false,
+            "chosen_frame": 1,
+            "last_viewed_frame": 0,
+            "palette_selections": {
+                "hair": "NONE",
+                "third_job": "NONE",
+                "fashion": {}
             }
         }
     }

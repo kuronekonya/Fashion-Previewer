@@ -1366,6 +1366,27 @@ class PaletteTool:
                 # Store per-character settings for later use
                 self.per_character_settings = data.get('per_character', {})
                 
+                # Scrub per-character palette selections of missing files
+                for char_id, char_data in self.per_character_settings.items():
+                    pal_sels = char_data.get('palette_selections', {})
+                    if not pal_sels:
+                        continue
+                        
+                    if 'hair' in pal_sels:
+                        hair_path = pal_sels['hair']
+                        if hair_path and hair_path != "NONE" and isinstance(hair_path, str) and not os.path.exists(hair_path):
+                            pal_sels['hair'] = "NONE"
+                            
+                    if 'third_job' in pal_sels:
+                        third_job_path = pal_sels['third_job']
+                        if third_job_path and third_job_path != "NONE" and isinstance(third_job_path, str) and not os.path.exists(third_job_path):
+                            pal_sels['third_job'] = "NONE"
+                            
+                    if 'fashion' in pal_sels and isinstance(pal_sels['fashion'], dict):
+                        for f_key, f_path in pal_sels['fashion'].items():
+                            if f_path and f_path != "NONE" and isinstance(f_path, str) and not os.path.exists(f_path):
+                                pal_sels['fashion'][f_key] = "NONE"
+                
                 # Load hidden frames and export frames (standardize keys to lowercase)
                 for char_job_raw, settings in self.per_character_settings.items():
                     char_job = str(char_job_raw).strip().lower()

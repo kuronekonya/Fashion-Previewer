@@ -1,23 +1,23 @@
 {
     "live_palette_files_edited": [],
     "live_palette_files_saved": [
-        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w2333.pal",
-        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w233.pal"
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w233.pal",
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w2333.pal"
     ],
     "icons_edited": [],
     "icons_saved": [],
-    "frames_previewed": 64,
+    "frames_previewed": 72,
     "frames_skipped": 370,
-    "total_time_spent": 7913.843499183655,
+    "total_time_spent": 8087.739705324173,
     "character_edits": {
         "chr001_1st Job": {
-            "views": 1,
+            "views": 2,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr008_1st Job": {
-            "views": 1,
+            "views": 2,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -29,7 +29,7 @@
             "exports": 0
         },
         "chr007_1st Job": {
-            "views": 1,
+            "views": 2,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -59,7 +59,7 @@
             "exports": 0
         },
         "chr018_3rd Job": {
-            "views": 25,
+            "views": 27,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -72,6 +72,12 @@
         },
         "chr006_1st Job": {
             "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr025_1st Job": {
+            "views": 2,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -89,7 +95,7 @@
         "live_pal": 96,
         "live_icon": 0
     },
-    "palettes_previewed": 1090,
+    "palettes_previewed": 1094,
     "unique_indexes_modified": [
         160,
         129,

@@ -853,3 +853,8 @@ It would be really cool if it did the XML too, but I don't think I'm going to do
 - Fixed a few weird dx msgs
 - Fixed BG Choice being overritten every time the program started up
 - Moved Big Picture Mode button to the bottom right
+
+# 4.4 - Emergency Paula Ressuscitation Plan
+
+- Fixed Paula Pals not loading
+- Fixed Statistics file not clearing unused pals if they were removed

@@ -224,12 +224,33 @@ CHARACTER_RANGES = {
         "hair": [range(208, 226)],  # Hair palettes
     },
     "100": {  # Same as 025
+        "fashion_1": [range(111, 142)],  # Stadium Jacket: 111-141
+        "fashion_2": [range(142, 154)],  # Sleeveless Dress: 142-153
+        "fashion_3": [range(154, 168)],  # Knee Socks: 154-167
+        "fashion_4": [range(168, 174), range(189, 193)],  # School Loafers: 168-173, 189-192
+        "fashion_5": [range(174, 177)],  # Ribbon Chou: 174-176
+        "fashion_6": [range(177, 189)],  # Cutie Satchel: 177-188
+        "fashion_7": [range(189, 193)],  # Extra [Old Range - Not in MD]
         "hair": [range(208, 226)],  # Hair palettes
     },
     "101": {  # Same as 026
+        "fashion_1": [range(111, 142)],  # Pocket One-piece: 111-141
+        "fashion_2": [range(142, 156)],  # Animal Pocket Belt: 142-155
+        "fashion_3": [range(156, 174)],  # Knee-high Boots: 156-173
+        "fashion_4": [range(174, 178)],  # Ribbons: 174-177
+        "fashion_5": [range(178, 190)],  # Arm Cover: 178-189
+        "fashion_6": [range(190, 193)],  # Whip: 190-192
         "hair": [range(208, 226)],  # Hair palettes
     },
     "102": {  # Same as 027
+        "fashion_1": [range(111, 118)],  # Blouse: 111-117
+        "fashion_2": [range(119, 147)],  # Trench Dress: 119-146
+        "fashion_3": [range(148, 151)],  # Frilly Socks: 148-150
+        "fashion_4": [range(152, 166)],  # Cutie Buckle Boots: 152-165
+        "fashion_5": [range(167, 175)],  # Ribbon Rubber: 167-174
+        "fashion_6": [range(176, 182)],  # Ribbon Brooch: 176-181
+        "fashion_7": [range(183, 192)],  # Mini Pocket Belt: 183-191
+        "fashion_8": [range(192, 208)],  # Leather Buckle Gloves: 192-207
         "hair": [range(208, 226)],  # Hair palettes
     }
 }
