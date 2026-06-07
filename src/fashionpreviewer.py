@@ -3077,6 +3077,18 @@ class PaletteTool:
                              bg="#f44336", fg="white", font=("Arial", 8, "bold"))
         reset_btn.pack(fill="x", pady=(10, 0))
 
+        def toggle_saved_colors():
+            if not hasattr(self, 'saved_colors_main_frame'):
+                return
+            if str(self.saved_colors_main_frame) in self.paned.panes():
+                self.paned.forget(self.saved_colors_main_frame)
+            else:
+                self.paned.add(self.saved_colors_main_frame)
+
+        toggle_sc_btn = tk.Button(left_column, text="Toggle Saved Colors", command=toggle_saved_colors,
+                                 font=("Arial", 8, "bold"))
+        toggle_sc_btn.pack(fill="x", pady=(5, 0))
+
         # Right Column: Active Color Indexes
         right_column = tk.Frame(self.active_colors_frame, bg="white")
         right_column.pack(side="right", fill="both", expand=True, padx=5, pady=5)
@@ -3520,11 +3532,11 @@ class PaletteTool:
         
         # Fashion section with scrollbar
         self.fashion_frame = tk.LabelFrame(self.paned, text="Fashion")
-        self.fashion_frame.configure(height=360, width=300)
+        self.fashion_frame.configure(height=180, width=300)
         self.paned.add(self.fashion_frame)
         
         # Create scrollable frame for fashion palettes - reduced height
-        self.fashion_canvas = tk.Canvas(self.fashion_frame, height=360, width=300)
+        self.fashion_canvas = tk.Canvas(self.fashion_frame, height=180, width=300)
         self.fashion_scrollbar = tk.Scrollbar(self.fashion_frame, orient="vertical", command=self.fashion_canvas.yview)
         self.fashion_scrollable_frame = tk.Frame(self.fashion_canvas)
         
@@ -3558,6 +3570,125 @@ class PaletteTool:
         
         self.fashion_canvas.pack(side="left", fill="both", expand=True)
         self.fashion_scrollbar.pack(side="right", fill="y")
+
+        # Saved Colors section
+        self.saved_colors_main_frame = tk.LabelFrame(self.paned, text="Saved Colors")
+        self.saved_colors_main_frame.configure(height=180, width=300)
+        # NOT adding to paned window by default, it should only show when toggled
+        
+        # Ensure _saved_colors exists
+        if not hasattr(self, "_saved_colors"):
+            self._saved_colors = [(0,0,0)] * 20
+            
+        sc_top = tk.Frame(self.saved_colors_main_frame)
+        sc_top.pack(fill="x", padx=2, pady=2)
+        
+        tk.Label(self.saved_colors_main_frame, text="Left click to apply color\nRight click to save color",
+                anchor="w", justify="left", fg="gray40", font=("Arial", 8)).pack(fill="x", padx=6)
+                
+        def _sc_load_main():
+            from tkinter import filedialog
+            import json
+            import os
+            
+            root_dir = getattr(self, "root_dir", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            default_dir = os.path.join(root_dir, "exports", "colors", "json")
+            os.makedirs(default_dir, exist_ok=True)
+            
+            p = filedialog.askopenfilename(filetypes=[("JSON","*.json")], title="Load Colors", initialdir=default_dir)
+            if not p: return
+            try:
+                with open(p, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                if isinstance(data, list) and all(isinstance(t,(list,tuple)) and len(t)==3 for t in data):
+                    data = [tuple(int(x) for x in t) for t in data][:20]
+                    if len(data) < 20: data += [(0,0,0)]*(20-len(data))
+                    self._saved_colors = data
+                    self._sc_refresh_main()
+            except Exception: pass
+            
+        def _sc_clear_main():
+            self._saved_colors = [(0,0,0)] * 20
+            self._sc_refresh_main()
+            
+        tk.Button(sc_top, text="Load", width=6, command=_sc_load_main).pack(side="left")
+        tk.Button(sc_top, text="Clear", width=6, command=_sc_clear_main).pack(side="left", padx=(6,0))
+        
+        sc_grid = tk.Frame(self.saved_colors_main_frame)
+        sc_grid.pack(padx=2, pady=(0,2))
+        self._sc_main_btns = []
+        
+        def _sc_put_main(slot):
+            # Save selected color from compact editor
+            if not hasattr(self, 'compact_selected_colors') or not self.compact_selected_colors:
+                return
+            current_layer = getattr(self, '_compact_active_layer', None)
+            if not current_layer or not hasattr(current_layer, 'colors'):
+                return
+            # Get the first selected color
+            idx = list(self.compact_selected_colors)[0]
+            if idx < len(current_layer.colors):
+                color = current_layer.colors[idx]
+                self._saved_colors[slot] = (int(color[0]), int(color[1]), int(color[2]))
+                self._sc_refresh_main()
+                
+        def _sc_pick_main(slot):
+            # Apply color to selected slots in compact editor
+            if not hasattr(self, 'compact_selected_colors') or not self.compact_selected_colors:
+                return
+            current_layer = getattr(self, '_compact_active_layer', None)
+            if not current_layer or not hasattr(current_layer, 'colors'):
+                return
+            
+            r, g, b = self._saved_colors[slot]
+            if (r,g,b) == (0,0,0): return  # Ignore empty slots
+            
+            # Update all selected colors
+            for idx in self.compact_selected_colors:
+                if idx < len(current_layer.colors):
+                    current_layer.colors[idx] = [int(r), int(g), int(b), 255]
+            
+            # Refresh compact editor UI
+            if hasattr(self, '_update_compact_swatch_colors'):
+                self._update_compact_swatch_colors()
+            elif hasattr(self, '_update_compact_palette_editor_from_layer'):
+                self._update_compact_palette_editor_from_layer(current_layer)
+                
+            if hasattr(self, 'update_image_display'):
+                self.update_image_display()
+                
+        def _handle_click_main(event, slot, is_right_click):
+            if is_right_click:
+                _sc_put_main(slot)
+            else:
+                _sc_pick_main(slot)
+                
+        self._sc_refresh_main = lambda: None # Will define below
+        
+        for i in range(20):
+            canvas = tk.Canvas(sc_grid, width=24, height=24, highlightthickness=1, highlightbackground="black")
+            canvas.grid(row=i//10, column=i%10, padx=1, pady=1)
+            canvas.bind("<Button-1>", lambda e, j=i: _handle_click_main(e, j, False))
+            canvas.bind("<Button-3>", lambda e, j=i: _handle_click_main(e, j, True))
+            self._sc_main_btns.append(canvas)
+            
+        def real_refresh_main():
+            if getattr(self, '_syncing', False): return
+            if not hasattr(self, '_sc_main_btns'): return
+            for i, canvas in enumerate(self._sc_main_btns):
+                color = self._saved_colors[i]
+                hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+                canvas.delete("all")
+                canvas.create_rectangle(0, 0, 24, 24, fill=hex_color, outline="black")
+            if hasattr(self, '_sc_refresh_live') and not getattr(self, '_syncing', False):
+                try:
+                    self._syncing = True
+                    self._sc_refresh_live()
+                    self._syncing = False
+                except Exception:
+                    self._syncing = False
+        self._sc_refresh_main = real_refresh_main
+        self._sc_refresh_main()
 
         # Control buttons at the bottom (fixed height and minimum width to prevent squishing)
         # Store reference for visibility management in Small Preview Mode
@@ -3657,18 +3788,43 @@ class PaletteTool:
         if not character_name:
             return
             
-        # Find the first character ID for this character name
+        # Try to remember the previously selected job
+        previous_job = self.job_var.get() if hasattr(self, 'job_var') else None
+        
         char_id = None
-        for char_id_key in self.available_characters:
-            if char_id_key in CHARACTER_MAPPING:
-                char_info = CHARACTER_MAPPING[char_id_key]
-                if char_info['name'] == character_name:
-                    char_id = char_id_key
-                    break
+        
+        # First try to find a character ID that matches both the name and the previous job
+        if previous_job:
+            if character_name == "Paula":
+                if previous_job == "1st Job":
+                    if "chr025" in self.available_characters: char_id = "chr025"
+                    elif "chr100" in self.available_characters: char_id = "chr100"
+                elif previous_job == "2nd Job":
+                    if "chr026" in self.available_characters: char_id = "chr026"
+                    elif "chr101" in self.available_characters: char_id = "chr101"
+                elif previous_job == "3rd Job":
+                    if "chr027" in self.available_characters: char_id = "chr027"
+                    elif "chr102" in self.available_characters: char_id = "chr102"
             else:
-                if char_id_key == character_name:
-                    char_id = char_id_key
-                    break
+                for char_id_key in self.available_characters:
+                    if char_id_key in CHARACTER_MAPPING:
+                        char_info = CHARACTER_MAPPING[char_id_key]
+                        if char_info['name'] == character_name and char_info['job'] == previous_job:
+                            char_id = char_id_key
+                            break
+
+        # If not found or no previous job, fallback to the first character ID for this name
+        if not char_id:
+            for char_id_key in self.available_characters:
+                if char_id_key in CHARACTER_MAPPING:
+                    char_info = CHARACTER_MAPPING[char_id_key]
+                    if char_info['name'] == character_name:
+                        char_id = char_id_key
+                        break
+                else:
+                    if char_id_key == character_name:
+                        char_id = char_id_key
+                        break
                     
         # Reset custom frame settings when changing character
         if hasattr(self, 'current_character') and self.current_character != char_id:
@@ -3816,6 +3972,15 @@ class PaletteTool:
         images = self.character_images[char_id]
         max_frames = len(images)
         
+        # If we are displaying a specific chosen frame, navigate that sequentially
+        if getattr(self, 'use_frame_choice', False) and hasattr(self, 'chosen_frame'):
+            self.chosen_frame -= 1
+            if self.chosen_frame < 1:
+                self.chosen_frame = max_frames
+            self.update_image_display()
+            self._save_character_settings(char_id)
+            return
+        
         # Get current job
         current_job = self.job_var.get() if hasattr(self, 'job_var') else None
         
@@ -3919,6 +4084,15 @@ class PaletteTool:
             
         images = self.character_images[char_id]
         max_frames = len(images)
+        
+        # If we are displaying a specific chosen frame, navigate that sequentially
+        if getattr(self, 'use_frame_choice', False) and hasattr(self, 'chosen_frame'):
+            self.chosen_frame += 1
+            if self.chosen_frame > max_frames:
+                self.chosen_frame = 1
+            self.update_image_display()
+            self._save_character_settings(char_id)
+            return
         
         # Get current job
         current_job = self.job_var.get() if hasattr(self, 'job_var') else None
@@ -8002,6 +8176,7 @@ class PaletteTool:
         sc_grid = tk.Frame(sc_frame); sc_grid.pack(padx=2, pady=(0,2))
         self._sc_btns = []
         def _sc_refresh():
+            self._sc_refresh_live = _sc_refresh
             for i, canvas in enumerate(self._sc_btns):
                 r,g,b = self._saved_colors[i]
                 try: 
@@ -8009,6 +8184,13 @@ class PaletteTool:
                     canvas.delete("all")
                     canvas.create_rectangle(0, 0, 30, 30, fill=hex_color, outline="black")
                 except Exception: pass
+            if hasattr(self, '_sc_refresh_main') and not getattr(self, '_syncing', False):
+                try:
+                    self._syncing = True
+                    self._sc_refresh_main()
+                    self._syncing = False
+                except Exception:
+                    self._syncing = False
         def _sc_put(slot):
             ly = self._live_current_layer() if hasattr(self, "_live_current_layer") else None
             if ly is None: return
@@ -10109,6 +10291,10 @@ class PaletteTool:
         # Seed picker with index 0 for the new layer
         self._live_select_index(0)
         
+        # Update main canvas display to reflect the new active palette layer
+        if hasattr(self, '_debounced_display_update'):
+            self._debounced_display_update()
+        
         # Clear the updating flag after a short delay to ensure all palette switching is complete
         def clear_protection():
             self._updating_live_selection = False
@@ -12199,6 +12385,10 @@ class PaletteTool:
             # Show the compact control bar
             self.compact_control_bar.pack(side="bottom", fill="x", pady=(5, 0))
             
+            # Automatically show Saved Colors grid in Small Preview mode
+            if hasattr(self, 'saved_colors_main_frame'):
+                self.paned.add(self.saved_colors_main_frame)
+            
             # Ensure main button frame is always visible and on top
             if hasattr(self, 'main_button_frame'):
                 self.main_button_frame.lift()  # Raise to top of stacking order
@@ -12215,6 +12405,10 @@ class PaletteTool:
             
             # Hide the compact control bar
             self.compact_control_bar.pack_forget()
+            
+            # Automatically hide Saved Colors grid in Big Picture mode
+            if hasattr(self, 'saved_colors_main_frame'):
+                self.paned.forget(self.saved_colors_main_frame)
         
         # Update the display
         if hasattr(self, 'load_character_image'):

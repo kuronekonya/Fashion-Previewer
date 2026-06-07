@@ -6,9 +6,9 @@
     ],
     "icons_edited": [],
     "icons_saved": [],
-    "frames_previewed": 72,
-    "frames_skipped": 370,
-    "total_time_spent": 8087.739705324173,
+    "frames_previewed": 77,
+    "frames_skipped": 414,
+    "total_time_spent": 55309.785212516785,
     "character_edits": {
         "chr001_1st Job": {
             "views": 2,
@@ -29,13 +29,13 @@
             "exports": 0
         },
         "chr007_1st Job": {
-            "views": 2,
+            "views": 6,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr023_3rd Job": {
-            "views": 8,
+            "views": 16,
             "edits": 0,
             "palette_saves": 2,
             "exports": 0
@@ -88,33 +88,36 @@
     "exported_palettes": {},
     "colors_saved": 0,
     "indexes_changed": 0,
-    "indexes_selected": 96,
+    "indexes_selected": 103,
     "indexes_saved_in_pals": 512,
     "colors_saved_in_json": 0,
     "preview_indexes_selected": {
-        "live_pal": 96,
+        "live_pal": 103,
         "live_icon": 0
     },
-    "palettes_previewed": 1094,
+    "palettes_previewed": 1228,
     "unique_indexes_modified": [
-        160,
-        129,
         0,
+        129,
         133,
-        166,
         134,
         135,
         136,
-        202,
-        171,
-        204,
+        137,
+        138,
         150,
         151,
         152,
-        183,
         154,
+        157,
+        160,
+        166,
+        171,
+        183,
         187,
-        157
+        202,
+        204,
+        112
     ],
-    "total_index_modifications": 43
+    "total_index_modifications": 51
 }

@@ -1320,6 +1320,9 @@ ICON_TRANSPOSITIONS = {
             122: {'offset': (1, 1, -2), 'icon_index': 122},
             123: {'offset': (1, 0, 1), 'icon_index': 123},
             131: {'offset': (-1, -1, -3), 'icon_index': 131},
+            136: {'offset': (0, 0, 0), 'icon_index': 136},
+            137: {'offset': (0, 0, 0), 'icon_index': 137},
+            138: {'offset': (0, 0, 0), 'icon_index': 138},
         },
         'shirringskirt': {
             144: {'offset': (-1, -2, 0), 'icon_index': 144},
