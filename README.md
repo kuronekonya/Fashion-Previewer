@@ -31,6 +31,8 @@ Thank you for your hard work and contributions to bring this tool to life for th
 - **Illustration and Icon Export**: To make your life simple with implementation!
 - **Key Commands**: Commands to make your life simple and efficient!
 - **Click to Index**: Jump to an index by clicking on the Live Preview!
+- **Dark Mode**: Sleek dark theme that is easy on the eyes, applied instantly!
+- **Fashion Creator / XML Export**: Build game-ready XML configuration and SQL CMGDS code instantly!
 - **Local Statistics**: For the funzies, to track your progress, saved ONLY on your PC!
 
 ### Keyboard Shortcuts
@@ -118,36 +120,29 @@ FashionPreviewer/
 │   │   └── hair/                     # Custom hair palettes
 │   ├── full_pals/                    # Full palette exports
 │   ├── icons/                        # Exported icons
+│   ├── libconfig/                    # Exported XML configuration files
+│   ├── sql/                          # Exported SQL / CMGDS files
 │   └── colors/                       # Saved color collections
 │       ├── json/                     # JSON color files from all editors
 │       └── icon/                     # Icon color palette files
 └── src/                              # Core assets folder
     ├── fashionpreviewer.py           # da main sauce
     ├── launch_previewer.py           # Cross-platform launcher
-    ├── rawbmps/                      # Character images
-    │   ├── chr001/                   # Bunny 1st Job images (bmps able to be removed/deleted)
-    │   ├── chr002/                   # Buffalo 1st Job images (bmps able to be removed/deleted)
-    │   └── ...                       # Other character folders (bmps able to be removed/deleted)
-    └── nonremovable_assets/          # Assets that shouldn't be removed/modified
-        ├── myshop_base.bmp           # Base image for MyShop exports
-        ├── icons/                    # Icon assets
-        │   ├── chr001/               # Bunny fashion icons
-        │   │   ├── BMP/              # Icon BMPs
-        │   │   └── PAL/              # Icon palettes
-        │   └── ...                   # Other character icon folders
-        └── vanilla_pals/             # Default game palettes
-            ├── fashion/              # Fashion palettes
-            │   ├── chr001_w00.pal
-            │   ├── chr001_w01.pal
-            │   └── ...
-            ├── hair/                 # Hair palettes
-            │   ├── chr001_1.pal
-            │   ├── chr001_2.pal
-            │   └── ...
-            └── 3rd_default_fashion/  # 3rd job base fashion
-                ├── chr017/
-                ├── chr018/
-                └── ...
+    ├── fashion_creator.py            # XML/SQL Generator App
+    ├── icon_*.py, palette_*.py       # Various handler scripts
+    ├── assets/                       # Image assets and palettes
+    │   ├── rawbmps/                  # Character images
+    │   │   ├── chr001/               # Bunny 1st Job images
+    │   │   └── ...                   
+    │   └── nonremovable_assets/      # Assets that shouldn't be removed/modified
+    │       ├── myshop_base.bmp       # Base image for MyShop exports
+    │       ├── icons/                # Icon assets
+    │       └── vanilla_pals/         # Default game palettes
+    └── code/                         # Application source code modules
+        ├── core/                     # Core logic (data loading, framing)
+        ├── creator/                  # Fashion Creator (XML/SQL generation) logic
+        ├── ui/                       # User Interface components (menus, dialogs)
+        └── utils/                    # Utility scripts (themes, image processing)
 
 ```
 

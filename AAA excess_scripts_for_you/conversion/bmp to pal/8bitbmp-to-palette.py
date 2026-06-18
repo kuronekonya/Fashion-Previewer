@@ -82,7 +82,7 @@ def count_special_pixels(img_path: Path) -> Tuple[int, int]:
         im = Image.open(img_path).convert("RGBA")
     except Exception:
         return (0, 0)
-    pix = im.getdata()
+    pix = im.get_flattened_data()
     mag = 0
     blk = 0
     for r,g,b,a in pix:

@@ -858,3 +858,27 @@ It would be really cool if it did the XML too, but I don't think I'm going to do
 
 - Fixed Paula Pals not loading
 - Fixed Statistics file not clearing unused pals if they were removed
+
+# 5.0 - Dark Mode & XML Export
+
+- Added XML Generation Export
+- Added bulk set export including XML
+- Added Dark Mode
+- Added preview & confirmation to XML Generator
+- Added various options for flexible outputs in XML Generator
+- Added XML Generation to Quick Export
+- Added dedicated previews to XML Generation 
+- Added Rotate 90 degrees and Flip buttons to main previewer (affects Portrait exports)
+- Added Quickstart scripts
+- Added the new dependencies to both Windows and Linux first-time launchers
+- Added Clear Statistics button
+- Added Default Settings button
+- Changed the layout to have 3 columns to select pals from
+- Changed `src\nonremovable_assets` folder to be in `src\assets\nonremovable_assets`
+- Changed `src\rawbmps` folder to be in `src\assets\rawbmps`
+- Changed default BG for portraits to Magenta (#FF00FF)
+- Fixed BG Color choice not persisting
+- Fixed Custom View not working with arrow keys
+- Fixed Cat Pals having green in export (?)
+- Fixed Linux support (?)
+- Refactored a little

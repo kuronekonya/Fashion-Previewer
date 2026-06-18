@@ -13,7 +13,7 @@ from PIL import Image
 def convert_bmp_to_png(bmp_path: Path):
     """Convert a BMP to a PNG with black transparency."""
     img = Image.open(bmp_path).convert("RGBA")
-    datas = img.getdata()
+    datas = img.get_flattened_data()
     new_data = []
     for item in datas:
         # Check if pixel is pure black (0,0,0)

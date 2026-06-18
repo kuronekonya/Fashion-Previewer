@@ -25,11 +25,36 @@ def main():
 
     # Check required launcher files
     required_files = [
-        os.path.join(root_dir, "run_linux.sh"),
-        os.path.join(root_dir, "run_windows.bat"),
+        os.path.join(root_dir, "firststart_linux.sh"),
+        os.path.join(root_dir, "firststart_windows.bat"),
         os.path.join(script_dir, "fashionpreviewer.py"),
         os.path.join(script_dir, "icon_handler.py"),
-        os.path.join(script_dir, "palette_ranges.py")
+        os.path.join(script_dir, "palette_ranges.py"),
+        os.path.join(script_dir, "launch_previewer.py"),
+        os.path.join(script_dir, "code", "__init__.py"),
+        os.path.join(script_dir, "code", "core", "__init__.py"),
+        os.path.join(script_dir, "code", "core", "character_loader.py"),
+        os.path.join(script_dir, "code", "core", "color_picker.py"),
+        os.path.join(script_dir, "code", "core", "color_translator.py"),
+        os.path.join(script_dir, "code", "core", "data_loader.py"),
+        os.path.join(script_dir, "code", "core", "exporter.py"),
+        os.path.join(script_dir, "code", "core", "frame_manager.py"),
+        os.path.join(script_dir, "code", "core", "hsv_controls.py"),
+        os.path.join(script_dir, "code", "core", "index_loader.py"),
+        os.path.join(script_dir, "code", "core", "preview_refresher.py"),
+        os.path.join(script_dir, "code", "creator", "constants.py"),
+        os.path.join(script_dir, "code", "creator", "data_handlers.py"),
+        os.path.join(script_dir, "code", "creator", "generators.py"),
+        os.path.join(script_dir, "code", "creator", "ui_builder.py"),
+        os.path.join(script_dir, "code", "ui", "__init__.py"),
+        os.path.join(script_dir, "code", "ui", "gradient_menu.py"),
+        os.path.join(script_dir, "code", "ui", "main_previewer.py"),
+        os.path.join(script_dir, "code", "ui", "options_menu.py"),
+        os.path.join(script_dir, "code", "ui", "pal_editor.py"),
+        os.path.join(script_dir, "code", "ui", "xml_generator.py"),
+        os.path.join(script_dir, "code", "utils", "__init__.py"),
+        os.path.join(script_dir, "code", "utils", "theme_manager.py"),
+        os.path.join(script_dir, "code", "utils", "window_behavior.py")
     ]
 
     for file_path in required_files:
@@ -45,12 +70,15 @@ def main():
     root_dir = os.path.dirname(script_dir)  # More explicit parent directory handling
     
     # Define base paths
-    nonremovable_dir = os.path.join(script_dir, "nonremovable_assets")
+    nonremovable_dir = os.path.join(script_dir, "assets", "nonremovable_assets")
     
     # Build required folder paths
     required_folders = [
-        os.path.join(script_dir, "rawbmps"),
+        os.path.join(script_dir, "assets", "rawbmps"),
         os.path.join(nonremovable_dir, "vanilla_pals"),
+        os.path.join(nonremovable_dir, "vanilla_pals", "3rd_default_fashion"),
+        os.path.join(nonremovable_dir, "vanilla_pals", "fashion"),
+        os.path.join(nonremovable_dir, "vanilla_pals", "hair"),
         os.path.join(nonremovable_dir, "icons")
     ]
     missing_folders = []
@@ -69,7 +97,7 @@ def main():
     # Check for BMP and PAL folders in icons directory
     script_dir = os.path.dirname(os.path.abspath(__file__))
     root_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    icons_dir = os.path.join(script_dir, "nonremovable_assets", "icons")
+    icons_dir = os.path.join(script_dir, "assets", "nonremovable_assets", "icons")
     if os.path.exists(icons_dir):
         bmp_folders_missing = False
         pal_folders_missing = False
@@ -105,7 +133,11 @@ def main():
         os.path.join(exports_dir, "icons"),
         os.path.join(colors_dir, "json"),
         os.path.join(colors_dir, "icon"),
-        os.path.join(exports_dir, "full_pals")
+        os.path.join(exports_dir, "full_pals"),
+        os.path.join(exports_dir, "sets"),
+        os.path.join(exports_dir, "xml"),
+        os.path.join(exports_dir, "libconfig"),
+        os.path.join(exports_dir, "sql")
     ]
     
     # Create each directory
@@ -121,7 +153,7 @@ def main():
     stats_path = os.path.join(script_dir, "statistics.json")
     if not os.path.exists(stats_path):
         import json, time
-        print(f"Statistics file missing! Making stats file...")
+        print("Statistics file missing! Making stats file...")
         default_stats = {
             'live_palette_files_edited': [],
             'live_palette_files_saved': [],
@@ -153,7 +185,7 @@ def main():
     settings_path = os.path.join(script_dir, "settings.json")
     if not os.path.exists(settings_path):
         import json
-        print(f"Settings file missing! Making settings file...")
+        print("Settings file missing! Making settings file...")
         default_settings = {
             'global': {
                 'use_bmp_export': True,
@@ -189,17 +221,20 @@ def main():
         # Run the main application from the src directory
         print("Starting Fashion Previewer...")
         os.chdir(script_dir)  # Change to src directory to run the main script
-        subprocess.run([sys.executable, main_script], check=True)
+        result = subprocess.run([sys.executable, main_script])
         os.chdir(root_dir)  # Change back to root directory
-        print("Application closed successfully!")
-    except subprocess.CalledProcessError as e:
-        print(f"ERROR: Application failed to start: {e}")
-        print("This might be due to missing Python dependencies.")
-        print("Try running: pip install Pillow")
+        if result.returncode == 0:
+            print("Application closed successfully!")
+        else:
+            print("\\nERROR: The application crashed.")
+            input("Press Enter to exit...")
+            sys.exit(result.returncode)
+    except Exception as e:
+        print(f"ERROR: Unexpected error: {e}")
         input("Press Enter to exit...")
     except Exception as e:
         print(f"ERROR: Unexpected error: {e}")
         input("Press Enter to exit...")
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

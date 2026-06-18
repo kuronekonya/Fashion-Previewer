@@ -1,23 +1,24 @@
 {
     "live_palette_files_edited": [],
     "live_palette_files_saved": [
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w2333.pal",
         "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w233.pal",
-        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w2333.pal"
+        "C:/Users/bayle/Documents/GitHub/Fashion-Previewer/exports/custom_pals/fashion/chr023_w122.pal"
     ],
     "icons_edited": [],
     "icons_saved": [],
-    "frames_previewed": 77,
-    "frames_skipped": 414,
-    "total_time_spent": 55309.785212516785,
+    "frames_previewed": 897,
+    "frames_skipped": 445,
+    "total_time_spent": 61018.67291855812,
     "character_edits": {
         "chr001_1st Job": {
-            "views": 2,
+            "views": 3,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr008_1st Job": {
-            "views": 2,
+            "views": 3,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -29,15 +30,15 @@
             "exports": 0
         },
         "chr007_1st Job": {
-            "views": 6,
+            "views": 12,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr023_3rd Job": {
-            "views": 16,
+            "views": 20,
             "edits": 0,
-            "palette_saves": 2,
+            "palette_saves": 3,
             "exports": 0
         },
         "chr004_1st Job": {
@@ -47,7 +48,7 @@
             "exports": 0
         },
         "chr020_3rd Job": {
-            "views": 18,
+            "views": 19,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -59,25 +60,67 @@
             "exports": 0
         },
         "chr018_3rd Job": {
-            "views": 27,
+            "views": 28,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr003_1st Job": {
-            "views": 2,
+            "views": 3,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr006_1st Job": {
-            "views": 1,
+            "views": 2,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
         },
         "chr025_1st Job": {
+            "views": 9,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr012_2nd Job": {
             "views": 2,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr010_2nd Job": {
+            "views": 4,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr009_2nd Job": {
+            "views": 2,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr019_3rd Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr021_3rd Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr027_3rd Job": {
+            "views": 1,
+            "edits": 0,
+            "palette_saves": 0,
+            "exports": 0
+        },
+        "chr015_2nd Job": {
+            "views": 55,
             "edits": 0,
             "palette_saves": 0,
             "exports": 0
@@ -88,14 +131,14 @@
     "exported_palettes": {},
     "colors_saved": 0,
     "indexes_changed": 0,
-    "indexes_selected": 103,
-    "indexes_saved_in_pals": 512,
+    "indexes_selected": 141,
+    "indexes_saved_in_pals": 544,
     "colors_saved_in_json": 0,
     "preview_indexes_selected": {
-        "live_pal": 103,
+        "live_pal": 141,
         "live_icon": 0
     },
-    "palettes_previewed": 1228,
+    "palettes_previewed": 1665,
     "unique_indexes_modified": [
         0,
         129,
@@ -113,11 +156,17 @@
         160,
         166,
         171,
+        177,
         183,
+        184,
+        186,
         187,
+        193,
+        194,
         202,
         204,
+        111,
         112
     ],
-    "total_index_modifications": 51
+    "total_index_modifications": 77
 }

@@ -1853,7 +1853,7 @@ class PaletteTool:
         display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
         
         # THEN copy the pixel data from original image
-        display_img.putdata(self.original_image.getdata())
+        display_img.putdata(self.original_image.get_flattened_data())
         
 
         
@@ -2000,7 +2000,7 @@ class PaletteTool:
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
                 display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                display_img.putdata(original_img.getdata())
+                display_img.putdata(original_img.get_flattened_data())
                 
                 # Convert to RGBA and apply transparency
                 rgba_img = display_img.convert("RGBA")
@@ -2017,7 +2017,7 @@ class PaletteTool:
                 unique_colors = set()
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(original_img.getdata())
+                original_pixel_data = list(original_img.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -2211,7 +2211,7 @@ class PaletteTool:
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
                 display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                display_img.putdata(original_img.getdata())
+                display_img.putdata(original_img.get_flattened_data())
                 
                 # Convert to RGBA and apply transparency
                 rgba_img = display_img.convert("RGBA")
@@ -2228,7 +2228,7 @@ class PaletteTool:
                 unique_colors = set()
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(original_img.getdata())
+                original_pixel_data = list(original_img.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -3260,7 +3260,7 @@ class PaletteTool:
             display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
             
             # THEN copy the pixel data from original image
-            display_img.putdata(self.original_image.getdata())
+            display_img.putdata(self.original_image.get_flattened_data())
             
             # Convert to RGBA to handle transparency
             rgba_img = display_img.convert("RGBA")
@@ -3277,7 +3277,7 @@ class PaletteTool:
                 total_pixels = w * h
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(self.original_image.getdata())
+                original_pixel_data = list(self.original_image.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -3478,7 +3478,7 @@ class PaletteTool:
                     w, h = original_img.size
                     display_img = Image.new("P", (w, h))
                     display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                    display_img.putdata(original_img.getdata())
+                    display_img.putdata(original_img.get_flattened_data())
                     
                     # Convert to RGBA and apply transparency
                     rgba_img = display_img.convert("RGBA")
@@ -3492,7 +3492,7 @@ class PaletteTool:
                     total_pixels = w * h
                     
                     # Get original image pixel data to check original palette indices
-                    original_pixel_data = list(original_img.getdata())
+                    original_pixel_data = list(original_img.get_flattened_data())
                     
                     for y in range(h):
                         for x in range(w):

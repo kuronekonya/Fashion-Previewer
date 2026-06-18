@@ -373,7 +373,7 @@ class IconHandler:
     def __init__(self):
         self.script_dir = os.path.dirname(os.path.abspath(__file__))
         self.root_dir = getattr(self, "root_dir", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        self.icons_dir = os.path.join(self.script_dir, "nonremovable_assets", "icons")
+        self.icons_dir = os.path.join(self.script_dir, "assets", "nonremovable_assets", "icons")
         
         
     def _get_fashion_name(self, char_id: str, fashion_type: str) -> str:
@@ -413,16 +413,12 @@ class IconHandler:
         # Search for magenta or black in the palette (prioritize magenta)
         found_magenta = False
         found_black = False
-        magenta_index = -1
-        black_index = -1
         
         for i, color in enumerate(ref_colors):
             if color == (255, 0, 255) and not found_magenta:
                 found_magenta = True
-                magenta_index = i
             elif color == (0, 0, 0) and not found_black:
                 found_black = True
-                black_index = i
         
         # Prioritize magenta over black
         if found_magenta:
@@ -684,7 +680,7 @@ class IconHandler:
             # Load the original vanilla palette to compare changes
             vanilla_pal_name = f"{char_id}_{fashion_type.replace('fashion_', 'w')}.pal"
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            vanilla_pal_path = os.path.join(script_dir, "nonremovable_assets", "vanilla_pals", "fashion", vanilla_pal_name)
+            vanilla_pal_path = os.path.join(script_dir, "assets", "nonremovable_assets", "vanilla_pals", "fashion", vanilla_pal_name)
             
             vanilla_colors = []
             if os.path.exists(vanilla_pal_path):
@@ -859,7 +855,7 @@ class IconHandler:
             
             # Load the original image as palette mode to get the palette indices
             original_img_palette = Image.open(image_path).convert("P")
-            original_pixel_data = list(original_img_palette.getdata())
+            original_pixel_data = list(original_img_palette.get_flattened_data())
             
             # Get the original BMP's palette
             original_bmp_palette = original_img_palette.getpalette()
@@ -1017,8 +1013,8 @@ class IconHandler:
             # Convert to RGB for final processing
             new_img = new_palette_img.convert("RGB")
             
-            new_img_sample = list(new_img.getdata())
-            unique_colors_after = set(new_img_sample)
+            new_img_sample = list(new_img.get_flattened_data())
+            set(new_img_sample)
             
             # Count pixels of each color
             color_counts = {}
@@ -1033,13 +1029,13 @@ class IconHandler:
                         r = new_palette[palette_start]
                         g = new_palette[palette_start + 1] 
                         b = new_palette[palette_start + 2]
-                        pixel_count = original_pixel_data.count(idx)
+                        original_pixel_data.count(idx)
             
             
             # Handle transparency by replacing transparent pixels with keying color
             transparent_count = 0
             opaque_count = 0
-            new_img_data = list(new_img.getdata())
+            new_img_data = list(new_img.get_flattened_data())
             
             for i, pixel in enumerate(new_img_data):
                 y = i // img.size[0]
@@ -1090,7 +1086,7 @@ class IconHandler:
             
             # Load the original image as palette mode to get the palette indices
             original_img_palette = Image.open(bmp_path).convert("P")
-            original_pixel_data = list(original_img_palette.getdata())
+            original_pixel_data = list(original_img_palette.get_flattened_data())
             
             # Create a new palette-mode image with the provided colors
             new_palette_img = Image.new("P", img.size)
@@ -1114,11 +1110,11 @@ class IconHandler:
             # Convert to RGB for final processing
             new_img = new_palette_img.convert("RGB")
             
-            new_img_sample = list(new_img.getdata())
-            unique_colors_after = set(new_img_sample)
+            new_img_sample = list(new_img.get_flattened_data())
+            set(new_img_sample)
             
             # Handle transparency by replacing transparent pixels with keying color
-            new_img_data = list(new_img.getdata())
+            new_img_data = list(new_img.get_flattened_data())
             
             for i, pixel in enumerate(new_img_data):
                 y = i // img.size[0]
@@ -1430,6 +1426,15 @@ class IconPaletteEditor:
         self.window.geometry("850x650")
         self.window.resizable(False, False)
         
+        from code.utils.theme_manager import ThemeManager
+        # Determine main window for theming
+        self.main_window = getattr(self.icon_handler, 'main_window', None)
+        if not self.main_window and self.live_editor_window:
+            self.main_window = getattr(self.live_editor_window, 'master', None)
+            
+        if self.main_window:
+            ThemeManager.apply_theme(self.main_window, self.window)
+        
         # Center the window on the screen
         self.window.update_idletasks()  # Update window size
         width = self.window.winfo_width()
@@ -1464,6 +1469,10 @@ class IconPaletteEditor:
         # Center the icon editor window after content is created
         self.window.update_idletasks()
         self._center_window_on_parent()
+
+        from code.utils.theme_manager import ThemeManager
+        if self.main_window:
+            ThemeManager.apply_theme(self.main_window, self.window)
         
         # Prompt user to save excess colors after window is shown
         self.window.after(100, self._prompt_save_excess_colors)
@@ -2164,11 +2173,14 @@ class IconPaletteEditor:
         self.colorpicker_btn = ttk.Button(hex_frame, text="🎨 Pick", command=self._toggle_colorpicker)
         self.colorpicker_btn.pack(side=tk.LEFT, padx=(5, 0))
         
-        # Gradient button with rainbow colors (using tk.Button for colors)
+        # Gradient button with rainbow colors (using tk.Button)
         self.gradient_btn = tk.Button(hex_frame, text="🌈", command=self._open_gradient_menu,
                                     bg="#FF4081", activebackground="#E91E63", width=3, height=1,
                                     font=("Arial", 10, "bold"), relief="raised")
         self.gradient_btn.pack(side=tk.LEFT, padx=(5, 0))
+        if hasattr(self, 'main_window') and self.main_window:
+            if not hasattr(self.main_window, '_compact_swatch_widgets'): self.main_window._compact_swatch_widgets = {}
+            self.main_window._compact_swatch_widgets['icon_gradient_btn'] = self.gradient_btn
         
         # HSV sliders
         
@@ -2244,8 +2256,9 @@ class IconPaletteEditor:
         canvas_container = ttk.Frame(left_frame)
         canvas_container.pack(fill=tk.X, pady=(0, 5))  # Changed from expand=True to fill=tk.X
         
+        is_dark = getattr(self.main_window, 'dark_mode', False) if hasattr(self, 'main_window') else False
         # Create canvas for palette grid inside the container (reduced by 40px from 330)
-        self.palette_canvas = tk.Canvas(canvas_container, highlightthickness=0, height=290)  # Reduced by 40px for more compact UI
+        self.palette_canvas = tk.Canvas(canvas_container, highlightthickness=0, height=290, bg="#1E1E1E" if is_dark else "white")  # Reduced by 40px for more compact UI
         palette_scrollbar = ttk.Scrollbar(canvas_container, orient="vertical", command=self.palette_canvas.yview)
         self.palette_canvas.configure(yscrollcommand=palette_scrollbar.set)
         
@@ -2412,12 +2425,12 @@ class IconPaletteEditor:
         
         # Account for scrollbar width (typically ~17px)
         scrollbar_width = 17
-        available_canvas_width = canvas_width - scrollbar_width
+        canvas_width - scrollbar_width
         
         # Calculate square size (2.5x larger: 32 * 2.5 = 80x80) and minimal padding
         square_size = 80
         padding = 2
-        total_square_width = square_size + (padding * 2)
+        square_size + (padding * 2)
         
         # Fixed 5 columns per row
         cols = 5
@@ -2456,7 +2469,9 @@ class IconPaletteEditor:
             except (ValueError, TypeError, IndexError):
                 hex_color = "#808080"  # Default gray
             
-            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline="black")
+            is_dark = getattr(self.main_window, 'dark_mode', False) if hasattr(self, 'main_window') else False
+            outline_color = "#555555" if is_dark else "black"
+            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline=outline_color)
             
             # Bind click events using the ORIGINAL index, not the display index
             square.bind("<Button-1>", lambda e, idx=original_idx: self._on_palette_square_click(idx, "left", e.state))
@@ -2810,11 +2825,6 @@ class IconPaletteEditor:
         self._update_preview()
         self._refresh_selection_highlights()
 
-    def _bring_to_front(self):
-        """Bring the icon editor window to front."""
-        self.window.lift()
-        self.window.focus_force()
-        
     def _close_editor(self):
         """Close the editor and clean up the instance."""
         # Clean up temporary cache
@@ -2957,7 +2967,6 @@ class IconPaletteEditor:
     def _show_auto_close_warning(self, title, message):
         """Show a warning dialog that automatically closes after 7 seconds."""
         import tkinter as tk
-        from tkinter import messagebox
         
         # Create a custom dialog
         dialog = tk.Toplevel(self.window)
@@ -3357,12 +3366,11 @@ class IconPaletteEditor:
     def _load_vanilla_palette_for_item(self, char_id: str, palette_type: str, layer_name: str):
         """Load the vanilla palette file for a specific character and fashion type."""
         import os
-        import re
         
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        root_dir = getattr(self, "root_dir", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        getattr(self, "root_dir", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         script_dir = os.path.dirname(os.path.abspath(__file__))
-        vanilla_fashion_dir = os.path.join(script_dir, "nonremovable_assets", "vanilla_pals", "fashion")
+        vanilla_fashion_dir = os.path.join(script_dir, "assets", "nonremovable_assets", "vanilla_pals", "fashion")
         
         # Try to find the vanilla palette file that matches this layer
         if os.path.exists(vanilla_fashion_dir):
@@ -3540,10 +3548,15 @@ class IconPaletteEditor:
             square.grid(row=row, column=col, padx=padx, pady=vertical_spacing)
             self.saved_color_squares.append(square)  # Store reference
             
-            # Fill with saved color
             color = self.saved_colors[i]
-            hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
-            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline="black")
+            is_dark = getattr(self.main_window, 'dark_mode', False) if hasattr(self, 'main_window') else False
+            if color == (0, 0, 0):
+                hex_color = "#FFFFFF" if is_dark else "#000000"
+            else:
+                hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+            
+            outline_color = "#555555" if is_dark else "black"
+            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline=outline_color)
             
             # Bind click events
             square.bind("<Button-1>", lambda e, idx=i: self._on_saved_color_click(idx, "left"))
@@ -3554,11 +3567,17 @@ class IconPaletteEditor:
         if hasattr(self, 'saved_color_squares') and slot_index < len(self.saved_color_squares):
             square = self.saved_color_squares[slot_index]
             color = self.saved_colors[slot_index]
-            hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+            is_dark = getattr(self.main_window, 'dark_mode', False) if hasattr(self, 'main_window') else False
+            if color == (0, 0, 0):
+                hex_color = "#FFFFFF" if is_dark else "#000000"
+            else:
+                hex_color = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
+            
+            outline_color = "#555555" if is_dark else "black"
             square.delete("all")
             # Use the same size as calculated in _create_saved_colors_grid
             square_size = square.winfo_width()
-            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline="black")
+            square.create_rectangle(0, 0, square_size, square_size, fill=hex_color, outline=outline_color)
     
     def _save_to_slot(self, slot_index):
         """Save current color to a saved color slot."""
@@ -3793,7 +3812,7 @@ class IconPaletteEditor:
             alpha_data = []
             
             # Create alpha channel: transparent where keying color exists
-            for pixel in img.getdata():
+            for pixel in img.get_flattened_data():
                 if pixel[:3] == self.keying_color:  # Keying color (usually magenta)
                     alpha_data.append(0)  # Transparent
                 else:
@@ -3815,7 +3834,7 @@ class IconPaletteEditor:
                     bmp_palette.append((bmp_palette_data[i], bmp_palette_data[i+1], bmp_palette_data[i+2]))
             
             # Get BMP pixel indices
-            bmp_pixels = list(bmp_img.getdata())
+            bmp_pixels = list(bmp_img.get_flattened_data())
             
             # Load the base palette (_base.pal)
             base_pal_colors = []
@@ -4350,7 +4369,7 @@ class IconPaletteEditor:
                     # Show error message about missing colors with auto-close
                     self._show_auto_close_warning(
                         "Missing Colors", 
-                        f"Error, missing enough indexes in the imported palette file, compensating..."
+                        "Error, missing enough indexes in the imported palette file, compensating..."
                     )
                     # Bring the icon editor window to the front after showing the warning
                     self._bring_to_front()
@@ -4452,7 +4471,6 @@ class IconPaletteEditor:
 
     def _open_gradient_menu(self):
         """Open the gradient/hue adjustment menu for icon editor."""
-        import colorsys
         
         # Create gradient menu window
         gradient_window = tk.Toplevel(self.window)
@@ -4881,61 +4899,6 @@ class IconPaletteEditor:
         
         return False
 
-    def is_universal_keying_color(self, color):
-        """Check if a color is a universal keying color for ALL characters"""
-        r, g, b = color
-        
-        # Pure green (0, 255, 0) - used by ALL characters including chr010
-        if color == (0, 255, 0):
-            return True
-        
-        # (0~25, 255, 0) pattern - used by chr002, chr008, chr024, and others
-        if g == 255 and b == 0 and 0 <= r <= 25:
-            return True
-        
-        # (0, 255, 0~21) pattern - used by chr003, chr011, chr019, and others
-        if g == 255 and r == 0 and 0 <= b <= 21:
-            return True
-        
-        return False
-
-    def is_chr003_keying_color(self, color):
-        """Check if a color is a keying color for chr003 (Sheep)"""
-        # chr003 uses universal keying colors
-        return self.is_universal_keying_color(color) or color == (255, 0, 255)  # Magenta
-
-    def is_chr008_keying_color(self, color):
-        """Check if a color is a keying color for chr008 (Raccoon)"""
-        # chr008 uses universal keying colors
-        return self.is_universal_keying_color(color) or color == (255, 0, 255)  # Magenta
-
-    def is_chr011_keying_color(self, color):
-        """Check if a color is a keying color for chr011 (Sheep 2nd Job)"""
-        # chr011 uses the same keying patterns as chr003
-        return self.is_universal_keying_color(color) or color == (255, 0, 255)  # Magenta
-
-    def is_chr014_keying_color(self, color):
-        """Check if a color is a keying color for chr014 (Lion 2nd Job)"""
-        # chr014 uses more selective keying to avoid over-transparency
-        # Only key out pure green and magenta, not green variants
-        if color == (0, 255, 0) or color == (255, 0, 255):  # Pure green and magenta
-            return True
-        return False
-    
-    def _find_nearest_non_keyed_color(self, color):
-        """Find the nearest color that isn't a keying color using HSV nudge."""
-        if self._is_keyed_color(color, 0):
-            import colorsys
-            r, g, b = color
-            h, s, v = colorsys.rgb_to_hsv(r/255.0, g/255.0, b/255.0)
-            if v > 0.5:
-                v = max(0.0, v - 0.02)
-            else:
-                v = min(1.0, v + 0.02)
-            nr, ng, nb = colorsys.hsv_to_rgb(h, s, v)
-            return (int(nr*255), int(ng*255), int(nb*255))
-        return color
-    
     def _quick_export(self, export_type):
         """Quick export either icon or portrait using current settings."""
         try:

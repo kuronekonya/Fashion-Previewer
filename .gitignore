@@ -299,3 +299,12 @@ exports/colors/*.json
 exports/custom_pals/fashion/*.pal
 exports/custom_pals/hair/*.pal
 exports/full_pals/*.pal
+src/__pycache__/fashionpreviewer_old.cpython-314.pyc
+src/__pycache__/icon_offsets.cpython-314.pyc
+src/__pycache__/fashion_creator.cpython-314.pyc
+src/__pycache__/launch_previewer.cpython-314.pyc
+src/assets/nonremovable_assets/icons/__pycache__/dump_palettes.cpython-314.pyc
+src/assets/nonremovable_assets/icons/__pycache__/dump_palettes_ultimate.cpython-314.pyc
+error_log.txt
+libconfig/CMSetItemParam_Fashion.xml
+temp_mirror.py

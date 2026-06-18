@@ -2382,7 +2382,7 @@ class PaletteTool:
         display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
         
         # THEN copy the pixel data from original image
-        display_img.putdata(self.original_image.getdata())
+        display_img.putdata(self.original_image.get_flattened_data())
         
 
         
@@ -2539,7 +2539,7 @@ class PaletteTool:
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
                 display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                display_img.putdata(original_img.getdata())
+                display_img.putdata(original_img.get_flattened_data())
                 
                 # Convert to RGBA and apply transparency
                 rgba_img = display_img.convert("RGBA")
@@ -2556,7 +2556,7 @@ class PaletteTool:
                 unique_colors = set()
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(original_img.getdata())
+                original_pixel_data = list(original_img.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -2783,7 +2783,7 @@ class PaletteTool:
                 w, h = original_img.size
                 display_img = Image.new("P", (w, h))
                 display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                display_img.putdata(original_img.getdata())
+                display_img.putdata(original_img.get_flattened_data())
                 
                 # Convert to RGBA and apply transparency
                 rgba_img = display_img.convert("RGBA")
@@ -2800,7 +2800,7 @@ class PaletteTool:
                 unique_colors = set()
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(original_img.getdata())
+                original_pixel_data = list(original_img.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -3830,7 +3830,7 @@ class PaletteTool:
             
         # Load original image and get its data
         with Image.open(original_img) as img:
-            pixel_data = list(img.getdata())
+            pixel_data = list(img.get_flattened_data())
             w, h = img.size
 
         # Create new image with background color
@@ -3920,7 +3920,7 @@ class PaletteTool:
                     
                     # Create mask for non-background pixels in the frame
                     mask = Image.new("L", img.size, 0)
-                    for i, pixel in enumerate(img.getdata()):
+                    for i, pixel in enumerate(img.get_flattened_data()):
                         if pixel != self.background_color:
                             mask.putpixel((i % img.width, i // img.width), 255)
                     
@@ -3944,7 +3944,7 @@ class PaletteTool:
                         portrait_img = self.myshop_base.copy().convert("RGB")
                         
                         # Replace magenta (255, 0, 255) with user's background color
-                        data = list(portrait_img.getdata())
+                        data = list(portrait_img.get_flattened_data())
                         for i, pixel in enumerate(data):
                             if pixel == (255, 0, 255):  # Magenta
                                 data[i] = self.background_color
@@ -3967,7 +3967,7 @@ class PaletteTool:
                     
                     # Create mask for non-background pixels in the frame
                     mask = Image.new("L", img.size, 0)
-                    for i, pixel in enumerate(img.getdata()):
+                    for i, pixel in enumerate(img.get_flattened_data()):
                         if pixel != self.background_color:
                             mask.putpixel((i % img.width, i // img.width), 255)
                     
@@ -3991,7 +3991,7 @@ class PaletteTool:
                         myshop_img = self.myshop_base135.copy().convert("RGB")
                         
                         # Replace magenta (255, 0, 255) with user's background color
-                        data = list(myshop_img.getdata())
+                        data = list(myshop_img.get_flattened_data())
                         for i, pixel in enumerate(data):
                             if pixel == (255, 0, 255):  # Magenta
                                 data[i] = self.background_color
@@ -4050,7 +4050,7 @@ class PaletteTool:
             display_img.putpalette([color for palette_color in merged_palette for color in palette_color])
             
             # THEN copy the pixel data from original image
-            display_img.putdata(self.original_image.getdata())
+            display_img.putdata(self.original_image.get_flattened_data())
             
             # Convert to RGBA to handle transparency
             rgba_img = display_img.convert("RGBA")
@@ -4067,7 +4067,7 @@ class PaletteTool:
                 total_pixels = w * h
                 
                 # Get original image pixel data to check original palette indices
-                original_pixel_data = list(self.original_image.getdata())
+                original_pixel_data = list(self.original_image.get_flattened_data())
                 
                 for y in range(h):
                     for x in range(w):
@@ -4268,7 +4268,7 @@ class PaletteTool:
                     w, h = original_img.size
                     display_img = Image.new("P", (w, h))
                     display_img.putpalette([color for palette_color in result_palette for color in palette_color])
-                    display_img.putdata(original_img.getdata())
+                    display_img.putdata(original_img.get_flattened_data())
                     
                     # Convert to RGBA and apply transparency
                     rgba_img = display_img.convert("RGBA")
@@ -4282,7 +4282,7 @@ class PaletteTool:
                     total_pixels = w * h
                     
                     # Get original image pixel data to check original palette indices
-                    original_pixel_data = list(original_img.getdata())
+                    original_pixel_data = list(original_img.get_flattened_data())
                     
                     for y in range(h):
                         for x in range(w):
