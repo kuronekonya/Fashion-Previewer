@@ -1,4 +1,4 @@
-# Fashion Previewer v4.3
+# Fashion Previewer v5.0
 
 A Python application for previewing and customizing character fashion using palette files.
 Now including Linux Support!
@@ -34,6 +34,7 @@ Thank you for your hard work and contributions to bring this tool to life for th
 - **Dark Mode**: Sleek dark theme that is easy on the eyes, applied instantly!
 - **Fashion Creator / XML Export**: Build game-ready XML configuration and SQL CMGDS code instantly!
 - **Local Statistics**: For the funzies, to track your progress, saved ONLY on your PC!
+- **XML Export**: To make the process EVEN EASIER!!!
 
 ### Keyboard Shortcuts
 
